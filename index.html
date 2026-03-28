@@ -636,9 +636,14 @@ function resetSelection(){G.selected=[];G.sectorEls.forEach(se=>se.el.classList.
 
 // ============ MODE SWITCHING ============
 function switchMode(mode){
-  document.querySelectorAll('.mode-tab').forEach((t,i)=>t.classList.toggle('active',mode==='zones'?i===0:i===1));
-  document.getElementById('modeZones').classList.toggle('active',mode==='zones');
-  document.getElementById('modeRoute').classList.toggle('active',mode==='route');
+  const idx = mode === 'zones' ? 0 : mode === 'route' ? 1 : 2;
+  document.querySelectorAll('.mode-tab').forEach((t,i)=>t.classList.toggle('active', i===idx));
+  document.querySelectorAll('.mode-content').forEach(c=>c.classList.remove('active'));
+  
+  if(mode==='zones') document.getElementById('modeZones').classList.add('active');
+  if(mode==='route') document.getElementById('modeRoute').classList.add('active');
+  if(mode==='check') document.getElementById('modeCheck').classList.add('active');
+  
   document.getElementById('setupError').style.display='none';
 }
 
