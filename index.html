@@ -837,12 +837,19 @@ function openGoogleMaps(){
 
 function copyWhatsApp(){
   if(!routeData.stops.length) return;
-  const mi=(routeData.totalDistKm*0.621371).toFixed(1);
+  const totalMi=((routeData.totalDistKm)*0.621371).toFixed(1);
+  const returnMi=(routeData.returnDist*0.621371).toFixed(1);
+  const totalMins=Math.round(routeData.totalDurMins);
+  
   let txt=`🚗 *Delivery Run*\n\n`;
   routeData.stops.forEach((s,i)=>{
     txt+=`${i+1}. ${s.rawAddress} - £${s.fee.toFixed(2)}\n`;
   });
-  txt+=`\nTotal: ${mi} mi | Est Revenue: £${routeData.totalFee.toFixed(2)}\n`;
+  txt+=`★ Return to shop: ${returnMi} mi\n`;
+  
+  txt+=`\nTotal Distance: ${totalMi} mi\n`;
+  txt+=`Total Driving: ~${totalMins} mins\n`;
+  txt+=`Est Revenue: £${routeData.totalFee.toFixed(2)}\n\n`;
   txt+=`📍 *Navigate*: ${routeData.gmapsUrl}`;
 
   navigator.clipboard.writeText(txt).then(()=>{
