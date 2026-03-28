@@ -100,8 +100,10 @@ body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var
 .mode-content{display:none}.mode-content.active{display:block}
 
 /* Route Planner */
-.route-textarea{width:100%;height:120px;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-family:'Courier New',monospace;font-size:14px;resize:vertical;text-transform:uppercase}
-.route-textarea:focus{outline:none;border-color:var(--gold)}
+.stop-row{display:flex;gap:8px;margin-bottom:8px}
+.stop-row input{flex:1;text-transform:uppercase}
+.stop-row button{background:#fee2e2;color:#b91c1c;border:none;border-radius:8px;width:42px;cursor:pointer;font-weight:bold;transition:all 0.2s}
+.stop-row button:hover{background:#fca5a5}
 .route-hint{font-size:11px;color:var(--muted);margin-top:4px;margin-bottom:12px}
 
 /* Route Phase */
@@ -205,10 +207,15 @@ body{background:#fff}
           </div>
         </div>
       </div>
-      <div class="form-group">
-        <label>Delivery Postcodes</label>
-        <textarea class="route-textarea" id="routeStops" placeholder="CV2 4NZ&#10;CV3 1HJ&#10;CV6 5AB"></textarea>
-        <div class="route-hint">One postcode per line, or comma-separated</div>
+      <div class="form-group" id="stopsGroup">
+        <label>Delivery Addresses</label>
+        <div id="dynamicStopsContainer">
+          <div class="stop-row"><input type="text" class="stop-input" placeholder="e.g. 12 CV1 5DW"><button onclick="this.parentElement.remove()">×</button></div>
+          <div class="stop-row"><input type="text" class="stop-input" placeholder="e.g. 14 CV2 4NZ"><button onclick="this.parentElement.remove()">×</button></div>
+          <div class="stop-row"><input type="text" class="stop-input" placeholder="e.g. CV6 5AB"><button onclick="this.parentElement.remove()">×</button></div>
+        </div>
+        <button class="btn" onclick="addStop()" style="width:100%;margin-top:4px;background:#f0f4ff;color:#1e40af">+ Add Another Drop</button>
+        <div class="route-hint" style="margin-top:12px">Include house numbers (e.g., "12 CV1 5DW") for exact Google Maps routing!</div>
       </div>
       <button class="generate-btn" id="routeBtn" onclick="planRoute()">Plan My Route →</button>
     </div>
@@ -638,19 +645,44 @@ function switchMode(mode){
 // ============ ROUTE PLANNER ============
 let routeData={origin:null,stops:[],gmapsUrl:''};
 
+function addStop(){
+  const c = document.getElementById('dynamicStopsContainer');
+  const d = document.createElement('div');
+  d.className = 'stop-row';
+  d.innerHTML = `<input type="text" class="stop-input" placeholder="e.g. 12 CV1 5DW"><button onclick="this.parentElement.remove()">×</button>`;
+  c.appendChild(d);
+  d.querySelector('input').focus();
+}
+
 async function planRoute(){
-  const start=document.getElementById('routeStart').value.trim();
-  const stopsRaw=document.getElementById('routeStops').value.trim();
-  if(!start||!stopsRaw){showError('Please enter your postcode and at least one delivery postcode');return}
-  const stopPCs=stopsRaw.split(/[\n,]+/).map(s=>s.trim().toUpperCase()).filter(s=>s.length>4);
-  if(stopPCs.length===0){showError('Please enter at least one valid delivery postcode');return}
-  if(stopPCs.length>15){showError('Maximum 15 stops supported');return}
+  const startRaw=document.getElementById('routeStart').value.trim();
+  const inputEls=document.querySelectorAll('.stop-input');
+  const inputs=Array.from(inputEls).map(i=>i.value.trim()).filter(Boolean);
+  
+  if(!startRaw||inputs.length===0){showError('Please enter your start postcode and at least one delivery address.');return}
+  if(inputs.length>15){showError('Maximum 15 stops supported');return}
+
+  // Extract valid postcodes using regex, keep raw string for Gmaps
+  const pcRegex=/[a-zA-Z]{1,2}\d[a-zA-Z\d]? ?\d[a-zA-Z]{2}/;
+  
+  const startMatch=startRaw.match(pcRegex);
+  if(!startMatch){showError('Start address must contain a valid UK postcode.');return}
+  const startObj={raw:startRaw, pc:startMatch[0].toUpperCase()};
+
+  const stops=[];
+  for(let i=0;i<inputs.length;i++){
+    const raw=inputs[i];
+    const match=raw.match(pcRegex);
+    if(!match){showError(`Row ${i+1} ("${raw}") does not contain a valid UK postcode.`);return}
+    stops.push({raw:raw, pc:match[0].toUpperCase()});
+  }
+
   document.getElementById('setupError').style.display='none';
   document.getElementById('routeBtn').disabled=true;
 
   try{
-    // Lookup all postcodes in one batch
-    const allPCs=[start.toUpperCase(),...stopPCs];
+    // Lookup all postcodes (the API only needs the postcode part)
+    const allPCs=[startObj.pc, ...stops.map(s=>s.pc)];
     const body={postcodes:allPCs};
     const r=await fetch(`${API}/postcodes`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json());
     if(!r.result)throw new Error('API error — please try again.');
@@ -658,18 +690,29 @@ async function planRoute(){
     const results=[];
     const invalid=[];
     r.result.forEach((p,i)=>{
-      if(p.result)results.push({pc:p.result.postcode,lat:p.result.latitude,lng:p.result.longitude,ward:p.result.admin_ward||'',district:p.result.admin_district||'',isOrigin:i===0});
+      if(p.result){
+        // Attach the resulting geography back to our objects
+        results.push({
+          rawAddress: i===0?startObj.raw:stops[i-1].raw,
+          pc:p.result.postcode,
+          lat:p.result.latitude,
+          lng:p.result.longitude,
+          ward:p.result.admin_ward||'',
+          district:p.result.admin_district||'',
+          isOrigin:i===0
+        });
+      }
       else invalid.push(allPCs[i]);
     });
     if(invalid.length)throw new Error(`Invalid postcodes: ${invalid.join(', ')}`);
     if(results.length<2)throw new Error('Need at least your postcode and one delivery address.');
 
     const origin=results[0];
-    const stops=results.slice(1);
+    const apiStops=results.slice(1);
 
     // Nearest-neighbour TSP from origin
     const ordered=[];
-    const remaining=[...stops];
+    const remaining=[...apiStops];
     let current=origin;
     while(remaining.length>0){
       let nearest=0,nearestDist=Infinity;
@@ -738,8 +781,8 @@ async function planRoute(){
 
     const totalFee=ordered.reduce((sum,s)=>sum+(s.fee||0),0);
 
-    // Build Google Maps URL
-    const waypoints=[origin,...ordered].map(s=>`${s.lat},${s.lng}`).join('/');
+    // Build Google Maps URL - using the ROOT/RAW strings with numbers for precise navigation!
+    const waypoints=[origin,...ordered].map(s=>encodeURIComponent(s.rawAddress)).join('/');
     const gmapsUrl=`https://www.google.com/maps/dir/${waypoints}`;
 
     routeData={origin,stops:ordered,gmapsUrl,totalDistKm:totalDistKm,totalDurMins:totalDurMins,totalFee:totalFee,returnDist:returnDist};
@@ -754,17 +797,17 @@ function showRouteResult(){
   const origin=routeData.origin;
   const stops=routeData.stops;
   
-  document.getElementById('routeSubtitle').textContent=`Starting from ${origin.pc} · ${origin.district}`;
+  document.getElementById('routeSubtitle').textContent=`Starting from ${origin.rawAddress} · ${origin.district}`;
   const list=document.getElementById('routeStopsList');
   let html=`<div class="route-stop">
     <div class="stop-num home">★</div>
-    <div class="stop-details"><div class="stop-pc">${origin.pc}</div><div class="stop-ward">🏠 Start — ${origin.ward}</div></div>
+    <div class="stop-details"><div class="stop-pc">${origin.rawAddress}</div><div class="stop-ward">🏠 Start — ${origin.ward}</div></div>
     <div class="stop-dist">START</div>
   </div>`;
   stops.forEach((s,i)=>{
     html+=`<div class="route-stop">
       <div class="stop-num">${i+1}</div>
-      <div class="stop-details"><div class="stop-pc">${s.pc}</div><div class="stop-ward">${s.ward}</div></div>
+      <div class="stop-details"><div class="stop-pc">${s.rawAddress}</div><div class="stop-ward">${s.ward}</div></div>
       <div class="stop-dist" style="color:#b45309;font-weight:600">£${s.fee.toFixed(2)}<br>
         <span style="font-weight:normal;font-size:10px;color:var(--muted)">${(s.distFromOrigin*0.621371).toFixed(1)}mi from base</span>
       </div>
@@ -797,7 +840,7 @@ function copyWhatsApp(){
   const mi=(routeData.totalDistKm*0.621371).toFixed(1);
   let txt=`🚗 *Delivery Run*\n\n`;
   routeData.stops.forEach((s,i)=>{
-    txt+=`${i+1}. ${s.pc} - £${s.fee.toFixed(2)}\n`;
+    txt+=`${i+1}. ${s.rawAddress} - £${s.fee.toFixed(2)}\n`;
   });
   txt+=`\nTotal: ${mi} mi | Est Revenue: £${routeData.totalFee.toFixed(2)}\n`;
   txt+=`📍 *Navigate*: ${routeData.gmapsUrl}`;
