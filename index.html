@@ -161,7 +161,6 @@ body{background:#fff}
     <div class="mode-tabs">
       <button class="mode-tab active" onclick="switchMode('zones')">🗺️ Zone Map</button>
       <button class="mode-tab" onclick="switchMode('route')">🚗 Route Planner</button>
-      <button class="mode-tab" onclick="switchMode('check')">📍 Quick Check</button>
     </div>
     <!-- Zone Map Mode -->
     <div class="mode-content active" id="modeZones">
@@ -196,53 +195,29 @@ body{background:#fff}
           <label>Start From (Postcode)</label>
           <input type="text" id="routeStart" placeholder="e.g. CV1 5DW" style="text-transform:uppercase" onchange="saveSettings()">
         </div>
-        <div class="form-group" style="display:flex;gap:10px">
-          <div style="flex:1">
-            <label>Fee Rate (£/mi)</label>
-            <input type="number" id="feeRate" placeholder="1.50" step="0.10" style="width:100%" onchange="saveSettings();syncSettings()">
+        <details class="fee-settings" style="margin-bottom:12px;font-size:13px"><summary style="cursor:pointer;color:var(--muted);font-weight:600">💰 Optional Fee Settings</summary>
+          <div class="form-group" style="display:flex;gap:10px;margin-top:8px">
+            <div style="flex:1">
+              <label>Fee Rate (£/mi)</label>
+              <input type="number" id="feeRate" placeholder="1.50" step="0.10" style="width:100%" onchange="saveSettings();syncSettings()">
+            </div>
+            <div style="flex:1">
+              <label>Min Fee (£)</label>
+              <input type="number" id="minFee" placeholder="2.00" step="0.50" style="width:100%" onchange="saveSettings();syncSettings()">
+            </div>
           </div>
-          <div style="flex:1">
-            <label>Min Fee (£)</label>
-            <input type="number" id="minFee" placeholder="2.00" step="0.50" style="width:100%" onchange="saveSettings();syncSettings()">
-          </div>
-        </div>
+        </details>
       </div>
       <div class="form-group" id="stopsGroup">
         <label>Delivery Addresses</label>
         <div id="dynamicStopsContainer">
-          <div class="stop-row"><input type="text" class="stop-input" placeholder="e.g. 12 CV1 5DW"><button onclick="this.parentElement.remove()">×</button></div>
-          <div class="stop-row"><input type="text" class="stop-input" placeholder="e.g. 14 CV2 4NZ"><button onclick="this.parentElement.remove()">×</button></div>
-          <div class="stop-row"><input type="text" class="stop-input" placeholder="e.g. CV6 5AB"><button onclick="this.parentElement.remove()">×</button></div>
+          <div class="stop-row"><input type="text" class="stop-house" placeholder="No. (Opt)" title="House Number (Optional)" style="flex:0.35;min-width:70px"><input type="text" class="stop-pc" placeholder="e.g. CV1 5DW"><button onclick="this.parentElement.remove()">×</button></div>
+          <div class="stop-row"><input type="text" class="stop-house" placeholder="No. (Opt)" title="House Number (Optional)" style="flex:0.35;min-width:70px"><input type="text" class="stop-pc" placeholder="e.g. CV2 4NZ"><button onclick="this.parentElement.remove()">×</button></div>
         </div>
         <button class="btn" onclick="addStop()" style="width:100%;margin-top:4px;background:#f0f4ff;color:#1e40af">+ Add Another Drop</button>
-        <div class="route-hint" style="margin-top:12px">Include house numbers (e.g., "12 CV1 5DW") for exact Google Maps routing!</div>
       </div>
       <button class="generate-btn" id="routeBtn" onclick="planRoute()">Plan My Route →</button>
     </div>
-    <!-- Quick Check Mode -->
-    <div class="mode-content" id="modeCheck">
-      <div class="form-group">
-        <label>Customer Postcode</label>
-        <input type="text" id="checkPostcode" placeholder="e.g. CV4 7AL" style="text-transform:uppercase;font-size:18px;text-align:center">
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Start (Shop Postcode)</label>
-          <input type="text" id="checkStart" placeholder="e.g. CV1 5DW" style="text-transform:uppercase" onchange="saveSettings()">
-        </div>
-        <div class="form-group" style="display:flex;gap:10px">
-          <div style="flex:1">
-            <label>Fee Rate (£/mi)</label>
-            <input type="number" id="checkFeeRate" placeholder="1.50" step="0.10" style="width:100%" onchange="saveSettings();syncSettings()">
-          </div>
-          <div style="flex:1">
-            <label>Min Fee (£)</label>
-            <input type="number" id="checkMinFee" placeholder="2.00" step="0.50" style="width:100%" onchange="saveSettings();syncSettings()">
-          </div>
-        </div>
-      </div>
-      <button class="generate-btn" id="checkBtn" onclick="quickCheck()">Check Address →</button>
-      <div id="checkResult" style="display:none;margin-top:20px;padding:16px;border-radius:10px;background:#f0f4ff;border:1.5px solid #bfdbfe;text-align:center"></div>
     </div>
     <div class="error-msg" id="setupError"></div>
   </div>
@@ -325,7 +300,7 @@ function showPhase(id){document.querySelectorAll('.phase').forEach(p=>p.classLis
 function setProgress(pct){document.getElementById('progressFill').style.width=pct+'%'}
 function setStatus(t){document.getElementById('statusText').textContent=t}
 function addLog(t){const d=document.createElement('div');d.textContent='✓ '+t;document.getElementById('logBox').prepend(d)}
-function showError(msg){const e=document.getElementById('setupError');e.textContent=msg;e.style.display='block';document.getElementById('genBtn').disabled=false;if(document.getElementById('checkBtn'))document.getElementById('checkBtn').disabled=false;}
+function showError(msg){const e=document.getElementById('setupError');e.textContent=msg;e.style.display='block';document.getElementById('genBtn').disabled=false;}
 function startOver(){showPhase('setup');document.getElementById('mapSvg').innerHTML='<defs><pattern id="swingHatch" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="rgba(0,0,0,.13)" stroke-width="2"/></pattern></defs>';document.getElementById('sidebarContent').innerHTML='';document.getElementById('logBox').innerHTML='';document.getElementById('genBtn').disabled=false;const rb=document.getElementById('routeBtn');if(rb)rb.disabled=false}
 function hav(a,b,c,d){const R=6371,dL=(c-a)*Math.PI/180,dG=(d-b)*Math.PI/180,x=Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dG/2)**2;return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x))}
 function mode(arr){const c={};arr.forEach(v=>{if(v)c[v]=(c[v]||0)+1});return Object.entries(c).sort((a,b)=>b[1]-a[1])[0]?.[0]||''}
@@ -342,11 +317,10 @@ function loadSettings(){
       if(s.pc){
         document.getElementById('inputPostcode').value=s.pc;
         document.getElementById('routeStart').value=s.pc;
-        document.getElementById('checkStart').value=s.pc;
       }
       if(s.radius)document.getElementById('inputRadius').value=s.radius;
-      if(s.feeRate){document.getElementById('feeRate').value=s.feeRate;document.getElementById('checkFeeRate').value=s.feeRate;}
-      if(s.minFee){document.getElementById('minFee').value=s.minFee;document.getElementById('checkMinFee').value=s.minFee;}
+      if(s.feeRate){document.getElementById('feeRate').value=s.feeRate;}
+      if(s.minFee){document.getElementById('minFee').value=s.minFee;}
     }
   }catch(e){}
 }
@@ -355,18 +329,19 @@ function saveSettings(){
     name:document.getElementById('inputName').value.trim(),
     pc:document.getElementById('inputPostcode').value.trim()||document.getElementById('routeStart').value.trim(),
     radius:document.getElementById('inputRadius').value,
-    feeRate:document.getElementById('feeRate').value||document.getElementById('checkFeeRate').value,
-    minFee:document.getElementById('minFee').value||document.getElementById('checkMinFee').value
+    feeRate:document.getElementById('feeRate').value,
+    minFee:document.getElementById('minFee').value
   };
   localStorage.setItem('dzg_settings',JSON.stringify(s));
 }
 function syncSettings(){
-  const f=document.getElementById('feeRate').value||document.getElementById('checkFeeRate').value;
-  const m=document.getElementById('minFee').value||document.getElementById('checkMinFee').value;
-  const start=document.getElementById('routeStart').value||document.getElementById('checkStart').value||document.getElementById('inputPostcode').value;
-  document.getElementById('feeRate').value=f;document.getElementById('checkFeeRate').value=f;
-  document.getElementById('minFee').value=m;document.getElementById('checkMinFee').value=m;
-  document.getElementById('routeStart').value=start;document.getElementById('checkStart').value=start;document.getElementById('inputPostcode').value=start;
+  const f=document.getElementById('feeRate').value;
+  const m=document.getElementById('minFee').value;
+  const start=document.getElementById('routeStart').value||document.getElementById('inputPostcode').value;
+  document.getElementById('feeRate').value=f;
+  document.getElementById('minFee').value=m;
+  document.getElementById('routeStart').value=start;
+  document.getElementById('inputPostcode').value=start;
 }
 
 
@@ -636,13 +611,12 @@ function resetSelection(){G.selected=[];G.sectorEls.forEach(se=>se.el.classList.
 
 // ============ MODE SWITCHING ============
 function switchMode(mode){
-  const idx = mode === 'zones' ? 0 : mode === 'route' ? 1 : 2;
+  const idx = mode === 'zones' ? 0 : 1;
   document.querySelectorAll('.mode-tab').forEach((t,i)=>t.classList.toggle('active', i===idx));
   document.querySelectorAll('.mode-content').forEach(c=>c.classList.remove('active'));
   
   if(mode==='zones') document.getElementById('modeZones').classList.add('active');
   if(mode==='route') document.getElementById('modeRoute').classList.add('active');
-  if(mode==='check') document.getElementById('modeCheck').classList.add('active');
   
   document.getElementById('setupError').style.display='none';
 }
@@ -654,18 +628,17 @@ function addStop(){
   const c = document.getElementById('dynamicStopsContainer');
   const d = document.createElement('div');
   d.className = 'stop-row';
-  d.innerHTML = `<input type="text" class="stop-input" placeholder="e.g. 12 CV1 5DW"><button onclick="this.parentElement.remove()">×</button>`;
+  d.innerHTML = `<input type="text" class="stop-house" placeholder="No. (Opt)" title="House Number (Optional)" style="flex:0.35;min-width:70px"><input type="text" class="stop-pc" placeholder="Postcode"><button onclick="this.parentElement.remove()">×</button>`;
   c.appendChild(d);
-  d.querySelector('input').focus();
+  d.querySelector('.stop-pc').focus();
 }
 
 async function planRoute(){
   const startRaw=document.getElementById('routeStart').value.trim();
-  const inputEls=document.querySelectorAll('.stop-input');
-  const inputs=Array.from(inputEls).map(i=>i.value.trim()).filter(Boolean);
+  const rows=document.querySelectorAll('#dynamicStopsContainer .stop-row');
   
-  if(!startRaw||inputs.length===0){showError('Please enter your start postcode and at least one delivery address.');return}
-  if(inputs.length>15){showError('Maximum 15 stops supported');return}
+  if(!startRaw||rows.length===0){showError('Please enter your start postcode and at least one delivery address.');return}
+  if(rows.length>15){showError('Maximum 15 stops supported');return}
 
   // Extract valid postcodes using regex, keep raw string for Gmaps
   const pcRegex=/[a-zA-Z]{1,2}\d[a-zA-Z\d]? ?\d[a-zA-Z]{2}/;
@@ -675,12 +648,20 @@ async function planRoute(){
   const startObj={raw:startRaw, pc:startMatch[0].toUpperCase()};
 
   const stops=[];
-  for(let i=0;i<inputs.length;i++){
-    const raw=inputs[i];
-    const match=raw.match(pcRegex);
-    if(!match){showError(`Row ${i+1} ("${raw}") does not contain a valid UK postcode.`);return}
-    stops.push({raw:raw, pc:match[0].toUpperCase()});
+  for(let i=0;i<rows.length;i++){
+    const house=rows[i].querySelector('.stop-house').value.trim();
+    const pcInput=rows[i].querySelector('.stop-pc').value.trim();
+    if(!pcInput) continue; // Skip empty rows
+    
+    const match=pcInput.match(pcRegex);
+    if(!match){showError(`Row ${i+1} ("${pcInput}") does not contain a valid UK postcode.`);return}
+    
+    // Combine for Google Maps, use matched postcodes for API
+    const fullRaw = house ? `${house} ${pcInput}` : pcInput;
+    stops.push({raw:fullRaw, pc:match[0].toUpperCase()});
   }
+  
+  if(stops.length===0){showError('Please enter at least one delivery address.');return}
 
   document.getElementById('setupError').style.display='none';
   document.getElementById('routeBtn').disabled=true;
@@ -864,67 +845,6 @@ function copyWhatsApp(){
   });
 }
 
-// ============ QUICK CHECK ============
-async function quickCheck(){
-  saveSettings();
-  const start=document.getElementById('checkStart').value.trim().toUpperCase();
-  const dest=document.getElementById('checkPostcode').value.trim().toUpperCase();
-  const feeRate=parseFloat(document.getElementById('checkFeeRate').value)||0;
-  const minFee=parseFloat(document.getElementById('checkMinFee').value)||0;
-  
-  if(!start||!dest){
-    document.getElementById('checkResult').style.display='block';
-    document.getElementById('checkResult').innerHTML=`<span style="color:#c62828">⚠ Enter both Start and Customer postcodes.</span>`;
-    return;
-  }
-  
-  document.getElementById('checkBtn').disabled=true;
-  document.getElementById('checkBtn').textContent='Checking...';
-  
-  try{
-    const r=await fetch(`${API}/postcodes`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({postcodes:[start,dest]})}).then(r=>r.json());
-    if(!r.result||!r.result[0].result||!r.result[1].result)throw new Error('Could not find one of the postcodes.');
-    
-    const p1=r.result[0].result;
-    const p2=r.result[1].result;
-    
-    // OSRM route for accurate distance
-    let distMiles=hav(p1.latitude,p1.longitude,p2.latitude,p2.longitude)*0.621371; // Haversine fallback
-    let isOSRM=false;
-    let durMins=null;
-    
-    try{
-      const osrmRes=await fetch(`https://router.project-osrm.org/route/v1/driving/${p1.longitude},${p1.latitude};${p2.longitude},${p2.latitude}?overview=false`);
-      if(osrmRes.ok){
-        const json=await osrmRes.json();
-        if(json.routes&&json.routes[0]){
-          distMiles=(json.routes[0].distance/1000)*0.621371;
-          durMins=json.routes[0].duration/60;
-          isOSRM=true;
-        }
-      }
-    }catch(e){} // fallback to straight line
-    
-    let fee=distMiles*feeRate;
-    if(fee<minFee) fee=minFee;
-    
-    let html=``;
-    if(durMins!==null){
-      html+=`<div style="font-size:24px;margin-bottom:8px">🚗 <strong>~${Math.round(durMins)} mins</strong> driving</div>`;
-    }
-    html+=`<div style="font-size:18px;margin-bottom:4px">Distance: <strong>${distMiles.toFixed(1)} miles</strong> ${!isOSRM?'(straight line)':''}</div>`;
-    if(feeRate>0){
-      html+=`<div style="font-size:22px;color:#b45309;font-weight:800;margin-top:8px">Fee: £${fee.toFixed(2)}</div>`;
-    }
-    
-    document.getElementById('checkResult').innerHTML=html;
-    document.getElementById('checkResult').style.display='block';
-  }catch(err){
-    document.getElementById('checkResult').style.display='block';
-    document.getElementById('checkResult').innerHTML=`<span style="color:#c62828">⚠ ${err.message}</span>`;
-  }
-  document.getElementById('checkBtn').disabled=false;
-  document.getElementById('checkBtn').textContent='Check Address →';
 }
 </script>
 </body>
