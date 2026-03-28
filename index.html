@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Delivery Zone Generator</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+:root{--bg:#f8f9fa;--card:#fff;--text:#1a1a2e;--muted:#6b7280;--border:#e5e7eb;--gold:#f59e0b;--shadow:0 2px 8px rgba(0,0,0,0.08)}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.5}
+
+/* Setup Phase */
+.phase{display:none}.phase.active{display:flex}
+.setup{min-height:100vh;align-items:center;justify-content:center;background:linear-gradient(135deg,#f0f4ff 0%,#fdf2f8 50%,#fef9ec 100%)}
+.setup-card{background:var(--card);border-radius:16px;padding:48px;max-width:440px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.1);text-align:center}
+.setup-card .logo{font-size:48px;margin-bottom:8px}
+.setup-card h1{font-size:24px;font-weight:800;margin-bottom:6px}
+.setup-card .tagline{font-size:14px;color:var(--muted);margin-bottom:28px}
+.form-group{text-align:left;margin-bottom:16px}
+.form-group label{display:block;font-size:13px;font-weight:600;margin-bottom:4px;color:var(--muted)}
+.form-group input,.form-group select{width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-family:inherit;font-size:15px;transition:border-color .2s}
+.form-row{display:flex;gap:12px}
+.form-row .form-group{flex:1}
+.radius-hint{font-size:11px;color:var(--muted);margin-top:3px;font-style:italic}
+.form-group input:focus{outline:none;border-color:var(--gold)}
+.generate-btn{width:100%;padding:13px;background:var(--text);color:#fff;border:none;border-radius:10px;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;margin-top:8px;transition:opacity .2s}
+.generate-btn:hover{opacity:.9}
+.generate-btn:disabled{opacity:.5;cursor:not-allowed}
+.error-msg{color:#dc2626;font-size:13px;margin-top:10px;display:none}
+
+/* Loading Phase */
+.loading{min-height:100vh;align-items:center;justify-content:center;flex-direction:column;background:var(--bg)}
+.loading-card{background:var(--card);border-radius:16px;padding:40px;max-width:480px;width:90%;box-shadow:var(--shadow);text-align:center}
+.loading-card h2{font-size:20px;font-weight:700;margin-bottom:20px}
+.progress-track{width:100%;height:8px;background:#e5e7eb;border-radius:4px;overflow:hidden;margin-bottom:16px}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--gold),#f97316);border-radius:4px;transition:width .4s ease;width:0%}
+#statusText{font-size:14px;color:var(--muted);font-weight:500}
+.log{margin-top:16px;text-align:left;max-height:120px;overflow-y:auto;font-size:12px;color:var(--muted)}
+.log div{padding:2px 0;border-bottom:1px solid #f3f4f6}
+
+/* Map Phase */
+.map-phase{flex-direction:column;height:100vh}
+.header{background:var(--card);border-bottom:1px solid var(--border);padding:12px 20px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.header-left{display:flex;align-items:center;gap:10px}
+.header-left .logo{font-size:24px;color:var(--gold)}
+.header-left h1{font-size:18px;font-weight:700}
+.header-left .sub{font-size:11px;color:var(--muted)}
+.header-right{display:flex;gap:6px}
+.btn{padding:7px 14px;border:1px solid var(--border);border-radius:8px;background:var(--card);font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s}
+.btn:hover{background:var(--bg)}
+.btn-dark{background:var(--text);color:#fff;border-color:var(--text)}
+.btn-dark:hover{opacity:.9;background:var(--text)}
+
+.result-bar{padding:10px 20px;background:#f0f4ff;border-bottom:1px solid #d0d8f0;font-size:13px;font-weight:500;min-height:40px;display:flex;align-items:center;gap:6px}
+.result-bar.match{background:#ecfdf5;border-color:#a7f3d0;color:#065f46}
+.result-bar.maybe{background:#fffbeb;border-color:#fde68a;color:#92400e}
+.result-bar.no-match{background:#fef2f2;border-color:#fecaca;color:#991b1b}
+
+.main{display:flex;flex:1;overflow:hidden}
+.map-area{flex:1;padding:12px;display:flex;align-items:center;justify-content:center}
+.map-area svg{width:100%;height:100%;max-width:700px;max-height:700px}
+
+.sidebar{width:320px;background:var(--card);border-left:1px solid var(--border);overflow-y:auto;padding:14px 16px}
+.sidebar h2{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:16px 0 8px}
+.sidebar h2:first-child{margin-top:0}
+.zone-card{border:2px solid;border-radius:10px;padding:9px 11px;margin-bottom:6px}
+.zone-card h3{font-size:13px;font-weight:700;margin-bottom:4px}
+.zone-card .tags{display:flex;flex-wrap:wrap;gap:3px}
+.sector-tag{background:rgba(0,0,0,.06);border-radius:4px;padding:2px 6px;font-size:11px;font-weight:600}
+.sector-tag.swing{border:1px dashed rgba(0,0,0,.3);background:rgba(255,255,255,.8)}
+.sector-tag.swing::after{content:"↔";font-size:8px;margin-left:2px}
+.zone-card .ward-note{font-size:10px;color:var(--muted);margin-top:3px}
+.swing-note{background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:7px 9px;font-size:11px;color:#92400e;margin-top:10px}
+
+.sector{cursor:pointer;transition:all .15s}
+.sector:hover{filter:brightness(.9)}
+.sector.selected{filter:brightness(.78);stroke-width:3.5}
+.sector-label{font-family:'Inter',sans-serif;font-weight:700;font-size:9px;fill:#333;pointer-events:none;text-anchor:middle}
+.sector-sublabel{font-family:'Inter',sans-serif;font-weight:400;font-size:5.5px;fill:#555;pointer-events:none;text-anchor:middle}
+.ring-road{fill:none;stroke:#aaa;stroke-width:1.2;stroke-dasharray:5 3;pointer-events:none}
+.marker-label{font-family:'Inter',sans-serif;font-weight:800;font-size:7px;fill:#b45309;pointer-events:none}
+
+/* Print */
+@media print{
+*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+body{background:#fff}
+.no-print,.btn,.result-bar{display:none!important}
+.header{box-shadow:none;border-bottom:2px solid #333;padding:6px 12px}
+.main{flex-direction:column;height:auto}
+.map-area{padding:2mm;page-break-after:always;break-after:page}
+.map-area svg{width:100%!important;height:auto!important;max-width:none!important;max-height:250mm!important}
+.sidebar{width:100%;border:none;padding:4mm 8mm;page-break-before:always;break-before:page}
+.sidebar::before{content:"Delivery Zone Quick Reference";display:block;font-size:20px;font-weight:800;text-align:center;padding-bottom:3mm;border-bottom:3px solid #333;margin-bottom:4mm}
+.sidebar h2{font-size:16px;margin-top:4mm;color:#333}
+.zone-card{padding:10px 14px;border-width:3px}.zone-card h3{font-size:16px}.sector-tag{font-size:14px;padding:3px 8px}
+.zone-card .ward-note{font-size:12px}
+@page{margin:6mm;size:A4 portrait}
+}
+</style>
+</head>
+<body>
+
+<!-- PHASE 1: Setup -->
+<div id="setupPhase" class="phase active setup">
+  <div class="setup-card">
+    <div class="logo">★</div>
+    <h1>Delivery Zone Generator</h1>
+    <p class="tagline">Auto-generate delivery zones for any UK restaurant</p>
+    <div class="form-group">
+      <label>Restaurant Name</label>
+      <input type="text" id="inputName" placeholder="e.g. Ironbite" autofocus>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Restaurant Postcode</label>
+        <input type="text" id="inputPostcode" placeholder="e.g. CV1 5DW" style="text-transform:uppercase">
+      </div>
+      <div class="form-group">
+        <label>Max Delivery Radius</label>
+        <select id="inputRadius">
+          <option value="3">3 miles</option>
+          <option value="4">4 miles</option>
+          <option value="5" selected>5 miles</option>
+          <option value="6">6 miles</option>
+          <option value="8">8 miles</option>
+          <option value="10">10 miles</option>
+        </select>
+        <div class="radius-hint">Sectors beyond this are excluded</div>
+      </div>
+    </div>
+    <button class="generate-btn" id="genBtn" onclick="startGenerate()">Generate My Delivery Map →</button>
+    <div class="error-msg" id="setupError"></div>
+  </div>
+</div>
+
+<!-- PHASE 2: Loading -->
+<div id="loadingPhase" class="phase loading">
+  <div class="loading-card">
+    <h2>🗺️ Generating Your Map</h2>
+    <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+    <p id="statusText">Initialising...</p>
+    <div class="log" id="logBox"></div>
+  </div>
+</div>
+
+<!-- PHASE 3: Map -->
+<div id="mapPhase" class="phase map-phase">
+  <div class="header">
+    <div class="header-left">
+      <span class="logo">★</span>
+      <div><h1 id="mapTitle">Delivery Zones</h1><div class="sub" id="mapSubtitle"></div></div>
+    </div>
+    <div class="header-right">
+      <button class="btn no-print" onclick="resetSelection()">↺ Reset</button>
+      <button class="btn btn-dark" onclick="window.print()">🖨 Print / PDF</button>
+      <button class="btn no-print" onclick="startOver()">← Start Over</button>
+    </div>
+  </div>
+  <div class="result-bar" id="resultBar"><span>👆</span><span id="resultText">Click any two sectors to check if they can share a delivery run</span></div>
+  <div class="main">
+    <div class="map-area"><svg id="mapSvg" viewBox="-10 -10 620 620" xmlns="http://www.w3.org/2000/svg">
+      <defs><pattern id="swingHatch" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="rgba(0,0,0,.13)" stroke-width="2"/></pattern></defs>
+    </svg></div>
+    <div class="sidebar" id="sidebarContent"></div>
+  </div>
+</div>
+
+<script>
+const API='https://api.postcodes.io';
+const COLORS=[
+  {fill:'#b2dfdb',stroke:'#00796b'},{fill:'#b3e5fc',stroke:'#0277bd'},
+  {fill:'#ffe0b2',stroke:'#e65100'},{fill:'#ffcdd2',stroke:'#c62828'},
+  {fill:'#e1bee7',stroke:'#6a1b9a'},{fill:'#dcedc8',stroke:'#558b2f'},
+  {fill:'#fff9c4',stroke:'#f9a825'}
+];
+const EMOJIS=['🔵','🟢','🟠','🔴','🟣','🟤','🟡'];
+let G={sectors:[],zones:[],restaurant:null,name:'',sectorEls:[],selected:[]};
+
+function showPhase(id){document.querySelectorAll('.phase').forEach(p=>p.classList.remove('active'));document.getElementById(id+'Phase').classList.add('active')}
+function setProgress(pct){document.getElementById('progressFill').style.width=pct+'%'}
+function setStatus(t){document.getElementById('statusText').textContent=t}
+function addLog(t){const d=document.createElement('div');d.textContent='✓ '+t;document.getElementById('logBox').prepend(d)}
+function showError(msg){const e=document.getElementById('setupError');e.textContent=msg;e.style.display='block';document.getElementById('genBtn').disabled=false}
+function startOver(){showPhase('setup');document.getElementById('mapSvg').innerHTML='<defs><pattern id="swingHatch" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="rgba(0,0,0,.13)" stroke-width="2"/></pattern></defs>';document.getElementById('sidebarContent').innerHTML='';document.getElementById('logBox').innerHTML=''}
+function hav(a,b,c,d){const R=6371,dL=(c-a)*Math.PI/180,dG=(d-b)*Math.PI/180,x=Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dG/2)**2;return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x))}
+function mode(arr){const c={};arr.forEach(v=>{if(v)c[v]=(c[v]||0)+1});return Object.entries(c).sort((a,b)=>b[1]-a[1])[0]?.[0]||''}
+
+async function startGenerate(){
+  const name=document.getElementById('inputName').value.trim();
+  const pc=document.getElementById('inputPostcode').value.trim();
+  const radiusMiles=parseFloat(document.getElementById('inputRadius').value)||5;
+  if(!name||!pc){showError('Please enter both name and postcode');return}
+  document.getElementById('setupError').style.display='none';
+  document.getElementById('genBtn').disabled=true;
+  G.name=name;G.radiusKm=radiusMiles*1.609;
+  showPhase('loading');
+  try{await generate(name,pc,G.radiusKm)}catch(e){showPhase('setup');showError(e.message||'Something went wrong. Please try again.')}
+}
+
+async function generate(name,postcode,radiusKm){
+  // Step 1: Lookup restaurant
+  setProgress(5);setStatus('Locating your restaurant...');
+  const r=await fetch(`${API}/postcodes/${encodeURIComponent(postcode)}`).then(r=>r.json());
+  if(r.status!==200||!r.result)throw new Error('Invalid postcode — please check and try again.');
+  const rest=r.result;G.restaurant=rest;
+  const radiusM=Math.round(radiusKm*1000);
+  addLog(`Found: ${rest.admin_district}, ${rest.admin_ward} (${(radiusKm/1.609).toFixed(0)} mile radius)`);
+
+  // Step 2: Nearby outcodes — use user's radius
+  setProgress(15);setStatus(`Scanning areas within ${(radiusKm/1.609).toFixed(0)} miles...`);
+  const ocRes=await fetch(`${API}/outcodes/${encodeURIComponent(rest.outcode)}/nearest?limit=25&radius=${Math.min(radiusM+3000,25000)}`).then(r=>r.json());
+  if(ocRes.status!==200||!ocRes.result)throw new Error('Could not find nearby areas.');
+  const area=rest.outcode.match(/^[A-Z]+/)?.[0]||'';
+  const outcodes=ocRes.result.filter(o=>o.outcode.startsWith(area));
+  addLog(`Found ${outcodes.length} postcode areas: ${outcodes.map(o=>o.outcode).join(', ')}`);
+
+  // Step 3: Bulk reverse geocode to discover sectors
+  setProgress(25);setStatus('Discovering postcode sectors...');
+  const offsets=[[0,0],[.018,0],[-.018,0],[0,.025],[0,-.025],[.013,.018],[.013,-.018],[-.013,.018],[-.013,-.018]];
+  const geos=[];
+  for(const oc of outcodes)for(const[dL,dG]of offsets)geos.push({longitude:oc.longitude+dG,latitude:oc.latitude+dL,radius:2000,limit:100});
+  const ocSet=new Set(outcodes.map(o=>o.outcode));
+  const allPC=new Map();
+  for(let i=0;i<geos.length;i+=100){
+    const batch=geos.slice(i,i+100);
+    const bRes=await fetch(`${API}/postcodes`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({geolocations:batch})}).then(r=>r.json());
+    if(bRes.result)for(const g of bRes.result)if(g.result)for(const p of g.result)if(ocSet.has(p.outcode))allPC.set(p.postcode,p);
+    setProgress(25+Math.round(i/geos.length*35));setStatus(`Scanned ${Math.min(i+100,geos.length)}/${geos.length} locations...`);
+  }
+  addLog(`Found ${allPC.size} unique postcodes`);
+
+  // Step 4: Group by sector
+  const sm={};
+  for(const[,p]of allPC){const d=p.incode?.[0];if(!d||!/\d/.test(d))continue;const sid=`${p.outcode} ${d}`;if(!sm[sid])sm[sid]={la:[],ln:[],ws:[]};sm[sid].la.push(p.latitude);sm[sid].ln.push(p.longitude);if(p.admin_ward)sm[sid].ws.push(p.admin_ward)}
+  let sectors=Object.entries(sm).map(([id,d])=>({id,lat:d.la.reduce((a,b)=>a+b)/d.la.length,lng:d.ln.reduce((a,b)=>a+b)/d.ln.length,ward:mode(d.ws),zone:-1,swing:null,dist:0}));
+  sectors.forEach(s=>s.dist=hav(s.lat,s.lng,rest.latitude,rest.longitude));
+  // Filter by max delivery radius
+  const beforeCount=sectors.length;
+  sectors=sectors.filter(s=>s.dist<=radiusKm);
+  sectors.sort((a,b)=>a.id.localeCompare(b.id));
+  addLog(`${beforeCount} sectors found, ${sectors.length} within ${(radiusKm/1.609).toFixed(0)} mile radius`);
+  if(sectors.length<4)throw new Error(`Only ${sectors.length} sectors within your radius — try increasing it.`);
+
+  // Step 5: Angular clustering — pie slices from restaurant
+  setProgress(70);setStatus('Calculating delivery zones...');
+  const k=Math.max(3,Math.min(7,Math.round(sectors.length/6)));
+  angularCluster(sectors,k,rest);
+  addLog(`Created ${k} delivery zones (angular corridors)`);
+
+  // Step 6: Identify swing sectors & name zones
+  setProgress(80);setStatus('Finalising zones...');
+  const zones=[];
+  for(let z=0;z<k;z++){
+    const members=sectors.filter(s=>s.zone===z);
+    const wards=members.map(s=>s.ward).filter(Boolean);
+    const wc={};wards.forEach(w=>wc[w]=(wc[w]||0)+1);
+    const top=Object.entries(wc).sort((a,b)=>b[1]-a[1]).slice(0,2).map(e=>e[0]);
+    // Determine compass direction for this zone
+    const avgAngle=members.reduce((a,s)=>a+sectorAngle(s,rest),0)/members.length;
+    const compass=angleToCompass(avgAngle);
+    const zoneName=top.length?`${compass} — ${top.join(' / ')}`:`${compass} Zone`;
+    zones.push({id:z,name:zoneName,colour:COLORS[z%COLORS.length],emoji:EMOJIS[z%EMOJIS.length],members});
+  }
+  // Swing sectors: on zone borders (adjacent angular zones)
+  sectors.forEach(s=>{
+    if(s.dist<0.6){s.swing=['any'];return}// Very close to restaurant
+    const ownZone=s.zone;
+    const myAngle=sectorAngle(s,rest);
+    // Check adjacent zones (zone±1, wrapping)
+    for(const dz of [-1,1]){
+      const adjZ=(ownZone+dz+k)%k;
+      const adjMembers=sectors.filter(o=>o.zone===adjZ);
+      const minD=Math.min(...adjMembers.map(o=>hav(s.lat,s.lng,o.lat,o.lng)));
+      if(minD<1.5){s.swing=s.swing||[];s.swing.push(zones[adjZ].name)}
+    }
+  });
+  G.sectors=sectors;G.zones=zones;
+
+  // Step 7: Render
+  setProgress(90);setStatus('Building your map...');
+  renderMap(name,rest,sectors,zones);
+  setProgress(100);setStatus('Done!');
+  setTimeout(()=>showPhase('map'),500);
+}
+
+function sectorAngle(s,rest){
+  // Bearing from restaurant to sector (0=N, 90=E, 180=S, 270=W)
+  const dLng=(s.lng-rest.longitude)*Math.PI/180;
+  const lat1=rest.latitude*Math.PI/180,lat2=s.lat*Math.PI/180;
+  const y=Math.sin(dLng)*Math.cos(lat2);
+  const x=Math.cos(lat1)*Math.sin(lat2)-Math.sin(lat1)*Math.cos(lat2)*Math.cos(dLng);
+  return (Math.atan2(y,x)*180/Math.PI+360)%360;
+}
+function angleToCompass(a){
+  const dirs=['N','NE','E','SE','S','SW','W','NW'];
+  return dirs[Math.round(a/45)%8];
+}
+function angularCluster(sectors,k,rest){
+  // Calculate angle from restaurant for each sector
+  sectors.forEach(s=>s._angle=sectorAngle(s,rest));
+  // Sort by angle
+  const sorted=[...sectors].sort((a,b)=>a._angle-b._angle);
+  // Split into k roughly equal groups by angle
+  // First, try even angular splits, then rebalance
+  const sliceSize=360/k;
+  sorted.forEach(s=>s.zone=Math.min(k-1,Math.floor(s._angle/sliceSize)));
+  // Rebalance: if any zone has 0 members, merge angle slices
+  // Check for empty zones and redistribute
+  for(let iter=0;iter<5;iter++){
+    const counts=new Array(k).fill(0);
+    sectors.forEach(s=>counts[s.zone]++);
+    const empty=counts.indexOf(0);
+    if(empty<0)break;
+    // Find biggest zone and split it
+    const biggest=counts.indexOf(Math.max(...counts));
+    const bigMembers=sorted.filter(s=>s.zone===biggest).sort((a,b)=>a._angle-b._angle);
+    const half=Math.floor(bigMembers.length/2);
+    bigMembers.slice(half).forEach(s=>s.zone=empty);
+  }
+  // Renumber zones in clockwise order starting from North
+  const zoneCentres=[];
+  for(let z=0;z<k;z++){
+    const m=sectors.filter(s=>s.zone===z);
+    if(m.length)zoneCentres.push({z,avgAngle:m.reduce((a,s)=>a+s._angle,0)/m.length});
+  }
+  zoneCentres.sort((a,b)=>a.avgAngle-b.avgAngle);
+  const remap={};zoneCentres.forEach((zc,i)=>remap[zc.z]=i);
+  sectors.forEach(s=>s.zone=remap[s.zone]??s.zone);
+}
+
+// ============ VORONOI ============
+function clipPoly(poly,mx,my,dx,dy){
+  const res=[];const n=poly.length;
+  for(let i=0;i<n;i++){const c=poly[i],nx=poly[(i+1)%n],dC=(c[0]-mx)*dx+(c[1]-my)*dy,dN=(nx[0]-mx)*dx+(nx[1]-my)*dy;
+  if(dC<=0)res.push(c);if((dC<=0)!==(dN<=0)){const t=dC/(dC-dN);res.push([c[0]+t*(nx[0]-c[0]),c[1]+t*(nx[1]-c[1])])}}return res}
+function voronoiCell(idx,pts,bnd){
+  let p=[[bnd.x,bnd.y],[bnd.x+bnd.w,bnd.y],[bnd.x+bnd.w,bnd.y+bnd.h],[bnd.x,bnd.y+bnd.h]];
+  const[px,py]=pts[idx];for(let j=0;j<pts.length;j++){if(j===idx)continue;const[qx,qy]=pts[j];p=clipPoly(p,(px+qx)/2,(py+qy)/2,qx-px,qy-py);if(!p.length)break}return p}
+
+// ============ RENDER ============
+function renderMap(name,rest,sectors,zones){
+  document.getElementById('mapTitle').textContent=`${name} Delivery Zones`;
+  document.getElementById('mapSubtitle').textContent=`${rest.postcode} · ${rest.admin_district}`;
+  const svg=document.getElementById('mapSvg');
+  // Keep defs, clear rest
+  const defs=svg.querySelector('defs').outerHTML;svg.innerHTML=defs;
+  const NS='http://www.w3.org/2000/svg';
+  const lats=sectors.map(s=>s.lat),lngs=sectors.map(s=>s.lng);
+  const pad=.008,mnLa=Math.min(...lats)-pad,mxLa=Math.max(...lats)+pad,mnLn=Math.min(...lngs)-pad,mxLn=Math.max(...lngs)+pad;
+  const toSvg=(la,ln)=>[((ln-mnLn)/(mxLn-mnLn))*600,((mxLa-la)/(mxLa-mnLa))*600];
+  const pts=sectors.map(s=>toSvg(s.lat,s.lng));
+  const bnd={x:-10,y:-10,w:620,h:620};
+  const cells=pts.map((_,i)=>voronoiCell(i,pts,bnd));
+
+  // Ring road approx
+  const rc=toSvg(rest.latitude,rest.longitude);
+  const rr=document.createElementNS(NS,'circle');rr.setAttribute('cx',rc[0]);rr.setAttribute('cy',rc[1]);rr.setAttribute('r',80);rr.setAttribute('class','ring-road');svg.appendChild(rr);
+
+  G.sectorEls=[];
+  cells.forEach((cell,i)=>{
+    if(cell.length<3)return;const s=sectors[i];const col=zones.find(z=>z.id===s.zone)?.colour||COLORS[0];
+    const pStr=cell.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
+    const poly=document.createElementNS(NS,'polygon');poly.setAttribute('points',pStr);poly.setAttribute('fill',col.fill);poly.setAttribute('stroke',col.stroke);poly.setAttribute('stroke-width','1.5');poly.setAttribute('class','sector');poly.addEventListener('click',()=>selectSector(s.id));svg.appendChild(poly);
+    G.sectorEls.push({el:poly,id:s.id});
+    if(s.swing){const h=document.createElementNS(NS,'polygon');h.setAttribute('points',pStr);h.setAttribute('fill','url(#swingHatch)');h.setAttribute('stroke','none');h.style.pointerEvents='none';svg.appendChild(h)}
+    const cx=cell.reduce((a,p)=>a+p[0],0)/cell.length,cy=cell.reduce((a,p)=>a+p[1],0)/cell.length;
+    const lb=document.createElementNS(NS,'text');lb.setAttribute('x',cx);lb.setAttribute('y',cy-2);lb.setAttribute('class','sector-label');lb.textContent=s.id;svg.appendChild(lb);
+    const sl=document.createElementNS(NS,'text');sl.setAttribute('x',cx);sl.setAttribute('y',cy+6);sl.setAttribute('class','sector-sublabel');sl.textContent=s.ward;svg.appendChild(sl);
+  });
+
+  // Restaurant marker
+  const ib=toSvg(rest.latitude,rest.longitude);
+  [['circle',{cx:ib[0],cy:ib[1],r:12,fill:'rgba(245,158,11,.18)'}],['circle',{cx:ib[0],cy:ib[1],r:6,fill:'#f59e0b',stroke:'#b45309','stroke-width':2}]].forEach(([t,a])=>{const e=document.createElementNS(NS,t);Object.entries(a).forEach(([k,v])=>e.setAttribute(k,v));e.style.pointerEvents='none';svg.appendChild(e)});
+  const ml=document.createElementNS(NS,'text');ml.setAttribute('x',ib[0]+12);ml.setAttribute('y',ib[1]+4);ml.setAttribute('class','marker-label');ml.textContent=`★ ${name.toUpperCase()}`;svg.appendChild(ml);
+  // Compass
+  [{t:'N',x:300,y:8},{t:'S',x:300,y:598},{t:'W',x:8,y:300},{t:'E',x:592,y:300}].forEach(c=>{const t=document.createElementNS(NS,'text');t.setAttribute('x',c.x);t.setAttribute('y',c.y);t.setAttribute('text-anchor','middle');t.setAttribute('font-family','Inter');t.setAttribute('font-size','11');t.setAttribute('font-weight','700');t.setAttribute('fill','#ccc');t.textContent=c.t;svg.appendChild(t)});
+
+  // Sidebar
+  const sb=document.getElementById('sidebarContent');
+  let html='<h2>Delivery Zones</h2>';
+  zones.forEach(z=>{
+    html+=`<div class="zone-card" style="border-color:${z.colour.stroke};background:${z.colour.fill}22"><h3 style="color:${z.colour.stroke}">${z.emoji} ${z.name}</h3><div class="tags">`;
+    z.members.sort((a,b)=>a.id.localeCompare(b.id)).forEach(s=>{html+=`<span class="sector-tag${s.swing?' swing':''}">${s.id}</span>`});
+    html+=`</div><div class="ward-note">${[...new Set(z.members.map(s=>s.ward).filter(Boolean))].join(', ')}</div></div>`;
+  });
+  const swings=sectors.filter(s=>s.swing);
+  if(swings.length){
+    html+=`<div class="swing-note"><strong>↔ Swing sectors</strong> — can go on adjacent runs.<br>`;
+    swings.forEach(s=>{html+=`<strong>${s.id}</strong> → ${s.swing.includes('any')?'Any run':s.swing.join(' or ')}<br>`});
+    html+=`</div>`;
+  }
+  sb.innerHTML=html;
+}
+
+// ============ INTERACTION ============
+function selectSector(id){
+  if(G.selected.length>=2)resetSelection();G.selected.push(id);
+  G.sectorEls.forEach(se=>{if(G.selected.includes(se.id))se.el.classList.add('selected')});
+  const bar=document.getElementById('resultBar'),txt=document.getElementById('resultText');
+  if(G.selected.length===2){
+    const s1=G.sectors.find(s=>s.id===G.selected[0]),s2=G.sectors.find(s=>s.id===G.selected[1]);
+    if(!s1||!s2)return;const d=hav(s1.lat,s1.lng,s2.lat,s2.lng).toFixed(1);
+    let cls='',msg='';
+    if(s1.id===s2.id){cls='match';msg="Same sector!"}
+    else if(s1.zone===s2.zone){cls='match';msg=`✓ SAME RUN — both in ${G.zones[s1.zone]?.name} (${d}km)`}
+    else if(s1.swing?.includes('any')||s2.swing?.includes('any')){cls='match';msg=`✓ SAME RUN — ${s1.swing?.includes('any')?s1.id:s2.id} is near home base (${d}km)`}
+    else if(s1.swing?.includes(G.zones[s2.zone]?.name)||s2.swing?.includes(G.zones[s1.zone]?.name)){cls='match';msg=`✓ SAME RUN — swing sector (${d}km)`}
+    else if(parseFloat(d)<2){cls='maybe';msg=`⚠ CLOSE (${d}km) but different zones — use judgement`}
+    else{cls='no-match';msg=`✗ SEPARATE RUNS — ${G.zones[s1.zone]?.name} vs ${G.zones[s2.zone]?.name} (${d}km)`}
+    bar.className='result-bar '+cls;txt.innerHTML=`<strong>${G.selected[0]}</strong> + <strong>${G.selected[1]}</strong> → ${msg}`;
+  }else{bar.className='result-bar';txt.innerHTML=`Selected <strong>${id}</strong> — click a second sector`}
+}
+function resetSelection(){G.selected=[];G.sectorEls.forEach(se=>se.el.classList.remove('selected'));document.getElementById('resultBar').className='result-bar';document.getElementById('resultText').innerHTML='Click any two sectors to check if they can share a delivery run'}
+</script>
+</body>
+</html>
