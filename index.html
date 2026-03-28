@@ -658,7 +658,7 @@ async function planRoute(){
     
     // Combine for Google Maps, use matched postcodes for API
     const fullRaw = house ? `${house} ${pcInput}` : pcInput;
-    stops.push({raw:fullRaw, pc:match[0].toUpperCase()});
+    stops.push({house, raw:fullRaw, pc:match[0].toUpperCase()});
   }
   
   if(stops.length===0){showError('Please enter at least one delivery address.');return}
@@ -679,6 +679,7 @@ async function planRoute(){
       if(p.result){
         // Attach the resulting geography back to our objects
         results.push({
+          house: i===0?'':stops[i-1].house,
           rawAddress: i===0?startObj.raw:stops[i-1].raw,
           pc:p.result.postcode,
           lat:p.result.latitude,
@@ -692,6 +693,22 @@ async function planRoute(){
     });
     if(invalid.length)throw new Error(`Invalid postcodes: ${invalid.join(', ')}`);
     if(results.length<2)throw new Error('Need at least your postcode and one delivery address.');
+
+    // Fetch exact street names from OSRM to drastically improve UI and Google Maps exactness!
+    await Promise.all(results.map(async s=>{
+      try{
+        const nrRes = await fetch(`https://router.project-osrm.org/nearest/v1/driving/${s.lng},${s.lat}`);
+        if(nrRes.ok){
+           const json=await nrRes.json();
+           if(json.waypoints&&json.waypoints[0]&&json.waypoints[0].name){
+             const street = json.waypoints[0].name;
+             if(street){
+               s.rawAddress = `${s.house ? s.house+' ' : ''}${street}, ${s.pc}`;
+             }
+           }
+        }
+      }catch(e){}
+    }));
 
     const origin=results[0];
     const apiStops=results.slice(1);
@@ -768,7 +785,8 @@ async function planRoute(){
     const totalFee=ordered.reduce((sum,s)=>sum+(s.fee||0),0);
 
     // Build Google Maps URL - using the ROOT/RAW strings with numbers for precise navigation!
-    const waypoints=[origin,...ordered].map(s=>encodeURIComponent(s.rawAddress)).join('/');
+    // Appending street/postcode and district ensures Google Geocoder does not fall back to rough polygons
+    const waypoints=[origin,...ordered].map(s=>encodeURIComponent(`${s.rawAddress}, ${s.district}`)).join('/');
     const gmapsUrl=`https://www.google.com/maps/dir/${waypoints}`;
 
     routeData={origin,stops:ordered,gmapsUrl,totalDistKm:totalDistKm,totalDurMins:totalDurMins,totalFee:totalFee,returnDist:returnDist};
