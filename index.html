@@ -92,6 +92,36 @@ body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var
 .review-actions .btn{padding:10px 18px}
 .review-count{font-size:13px;color:var(--muted);margin-left:auto}
 
+/* Mode Tabs */
+.mode-tabs{display:flex;gap:0;margin-bottom:20px;border-radius:10px;overflow:hidden;border:1.5px solid var(--border)}
+.mode-tab{flex:1;padding:10px;text-align:center;font-size:13px;font-weight:700;cursor:pointer;background:var(--bg);color:var(--muted);transition:all .2s;border:none;font-family:inherit}
+.mode-tab.active{background:var(--text);color:#fff}
+.mode-tab:hover:not(.active){background:#e5e7eb}
+.mode-content{display:none}.mode-content.active{display:block}
+
+/* Route Planner */
+.route-textarea{width:100%;height:120px;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-family:'Courier New',monospace;font-size:14px;resize:vertical;text-transform:uppercase}
+.route-textarea:focus{outline:none;border-color:var(--gold)}
+.route-hint{font-size:11px;color:var(--muted);margin-top:4px;margin-bottom:12px}
+
+/* Route Phase */
+.route-phase{min-height:100vh;align-items:flex-start;justify-content:center;padding:40px 20px;background:var(--bg)}
+.route-card{background:var(--card);border-radius:16px;padding:32px;max-width:560px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.1)}
+.route-card h2{font-size:20px;font-weight:800;margin-bottom:4px}
+.route-card .tagline{font-size:13px;color:var(--muted);margin-bottom:20px}
+.route-stop{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1.5px solid var(--border);border-radius:10px;margin-bottom:6px;position:relative}
+.route-stop .stop-num{width:32px;height:32px;border-radius:50%;background:var(--text);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex-shrink:0}
+.route-stop .stop-num.home{background:var(--gold)}
+.route-stop .stop-details{flex:1}
+.route-stop .stop-pc{font-weight:700;font-size:15px}
+.route-stop .stop-ward{font-size:12px;color:var(--muted)}
+.route-stop .stop-dist{font-size:12px;color:var(--muted);text-align:right;white-space:nowrap}
+.route-total{background:#f0f4ff;border-radius:10px;padding:12px 16px;margin:16px 0;font-size:14px;font-weight:600;color:#1e40af;text-align:center}
+.route-actions{display:flex;gap:8px;margin-top:8px}
+.route-actions .btn,.route-actions .generate-btn{flex:1;text-align:center}
+.gmaps-btn{background:#1a73e8!important;border-color:#1a73e8!important}
+.gmaps-btn:hover{opacity:.9!important;background:#1a73e8!important}
+
 .sector{cursor:pointer;transition:all .15s}
 .sector:hover{filter:brightness(.9)}
 .sector.selected{filter:brightness(.78);stroke-width:3.5}
@@ -125,31 +155,68 @@ body{background:#fff}
   <div class="setup-card">
     <div class="logo">★</div>
     <h1>Delivery Zone Generator</h1>
-    <p class="tagline">Auto-generate delivery zones for any UK restaurant</p>
-    <div class="form-group">
-      <label>Restaurant Name</label>
-      <input type="text" id="inputName" placeholder="e.g. Ironbite" autofocus>
+    <p class="tagline">Zone mapping & route planning for UK restaurants</p>
+    <div class="mode-tabs">
+      <button class="mode-tab active" onclick="switchMode('zones')">🗺️ Zone Map</button>
+      <button class="mode-tab" onclick="switchMode('route')">🚗 Route Planner</button>
     </div>
-    <div class="form-row">
+    <!-- Zone Map Mode -->
+    <div class="mode-content active" id="modeZones">
       <div class="form-group">
-        <label>Restaurant Postcode</label>
-        <input type="text" id="inputPostcode" placeholder="e.g. CV1 5DW" style="text-transform:uppercase">
+        <label>Restaurant Name</label>
+        <input type="text" id="inputName" placeholder="e.g. Ironbite" autofocus>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Restaurant Postcode</label>
+          <input type="text" id="inputPostcode" placeholder="e.g. CV1 5DW" style="text-transform:uppercase">
+        </div>
+        <div class="form-group">
+          <label>Max Delivery Radius</label>
+          <select id="inputRadius">
+            <option value="3">3 miles</option>
+            <option value="4">4 miles</option>
+            <option value="5" selected>5 miles</option>
+            <option value="6">6 miles</option>
+            <option value="8">8 miles</option>
+            <option value="10">10 miles</option>
+          </select>
+          <div class="radius-hint">Sectors beyond this are excluded</div>
+        </div>
+      </div>
+      <button class="generate-btn" id="genBtn" onclick="startGenerate()">Generate My Delivery Map →</button>
+    </div>
+    <!-- Route Planner Mode -->
+    <div class="mode-content" id="modeRoute">
+      <div class="form-group">
+        <label>Start From (Restaurant Postcode)</label>
+        <input type="text" id="routeStart" placeholder="e.g. CV1 5DW" style="text-transform:uppercase">
       </div>
       <div class="form-group">
-        <label>Max Delivery Radius</label>
-        <select id="inputRadius">
-          <option value="3">3 miles</option>
-          <option value="4">4 miles</option>
-          <option value="5" selected>5 miles</option>
-          <option value="6">6 miles</option>
-          <option value="8">8 miles</option>
-          <option value="10">10 miles</option>
-        </select>
-        <div class="radius-hint">Sectors beyond this are excluded</div>
+        <label>Delivery Postcodes</label>
+        <textarea class="route-textarea" id="routeStops" placeholder="CV2 4NZ
+CV3 1HJ
+CV6 5AB
+CV5 8GH"></textarea>
+        <div class="route-hint">One postcode per line, or comma-separated</div>
       </div>
+      <button class="generate-btn" id="routeBtn" onclick="planRoute()">Plan My Route →</button>
     </div>
-    <button class="generate-btn" id="genBtn" onclick="startGenerate()">Generate My Delivery Map →</button>
     <div class="error-msg" id="setupError"></div>
+  </div>
+</div>
+
+<!-- PHASE R: Route Result -->
+<div id="routePhase" class="phase route-phase">
+  <div class="route-card">
+    <h2>🚗 Optimised Route</h2>
+    <p class="tagline" id="routeSubtitle">Nearest-neighbour from your restaurant</p>
+    <div id="routeStopsList"></div>
+    <div class="route-total" id="routeTotal"></div>
+    <div class="route-actions">
+      <button class="btn" onclick="startOver()">← Back</button>
+      <button class="generate-btn gmaps-btn" onclick="openGoogleMaps()">📍 Open in Google Maps</button>
+    </div>
   </div>
 </div>
 
@@ -482,6 +549,111 @@ function selectSector(id){
   }else{bar.className='result-bar';txt.innerHTML=`Selected <strong>${id}</strong> — click a second sector`}
 }
 function resetSelection(){G.selected=[];G.sectorEls.forEach(se=>se.el.classList.remove('selected'));document.getElementById('resultBar').className='result-bar';document.getElementById('resultText').innerHTML='Click any two sectors to check if they can share a delivery run'}
+
+// ============ MODE SWITCHING ============
+function switchMode(mode){
+  document.querySelectorAll('.mode-tab').forEach((t,i)=>t.classList.toggle('active',mode==='zones'?i===0:i===1));
+  document.getElementById('modeZones').classList.toggle('active',mode==='zones');
+  document.getElementById('modeRoute').classList.toggle('active',mode==='route');
+  document.getElementById('setupError').style.display='none';
+}
+
+// ============ ROUTE PLANNER ============
+let routeData={origin:null,stops:[],gmapsUrl:''};
+
+async function planRoute(){
+  const start=document.getElementById('routeStart').value.trim();
+  const stopsRaw=document.getElementById('routeStops').value.trim();
+  if(!start||!stopsRaw){showError('Please enter your postcode and at least one delivery postcode');return}
+  const stopPCs=stopsRaw.split(/[\n,]+/).map(s=>s.trim().toUpperCase()).filter(s=>s.length>4);
+  if(stopPCs.length===0){showError('Please enter at least one valid delivery postcode');return}
+  if(stopPCs.length>15){showError('Maximum 15 stops supported');return}
+  document.getElementById('setupError').style.display='none';
+  document.getElementById('routeBtn').disabled=true;
+
+  try{
+    // Lookup all postcodes in one batch
+    const allPCs=[start.toUpperCase(),...stopPCs];
+    const body={postcodes:allPCs};
+    const r=await fetch(`${API}/postcodes`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json());
+    if(!r.result)throw new Error('API error — please try again.');
+
+    const results=[];
+    const invalid=[];
+    r.result.forEach((p,i)=>{
+      if(p.result)results.push({pc:p.result.postcode,lat:p.result.latitude,lng:p.result.longitude,ward:p.result.admin_ward||'',district:p.result.admin_district||'',isOrigin:i===0});
+      else invalid.push(allPCs[i]);
+    });
+    if(invalid.length)throw new Error(`Invalid postcodes: ${invalid.join(', ')}`);
+    if(results.length<2)throw new Error('Need at least your postcode and one delivery address.');
+
+    const origin=results[0];
+    const stops=results.slice(1);
+
+    // Nearest-neighbour TSP from origin
+    const ordered=[];
+    const remaining=[...stops];
+    let current=origin;
+    while(remaining.length>0){
+      let nearest=0,nearestDist=Infinity;
+      remaining.forEach((s,i)=>{
+        const d=hav(current.lat,current.lng,s.lat,s.lng);
+        if(d<nearestDist){nearestDist=d;nearest=i}
+      });
+      ordered.push({...remaining[nearest],legDist:nearestDist});
+      current=remaining[nearest];
+      remaining.splice(nearest,1);
+    }
+
+    // Calculate distances from origin for each stop
+    ordered.forEach(s=>s.distFromOrigin=hav(origin.lat,origin.lng,s.lat,s.lng));
+
+    // Total route distance
+    let totalDist=ordered[0]?hav(origin.lat,origin.lng,ordered[0].lat,ordered[0].lng):0;
+    for(let i=1;i<ordered.length;i++)totalDist+=hav(ordered[i-1].lat,ordered[i-1].lng,ordered[i].lat,ordered[i].lng);
+    const returnDist=ordered.length?hav(ordered[ordered.length-1].lat,ordered[ordered.length-1].lng,origin.lat,origin.lng):0;
+
+    // Build Google Maps URL
+    const waypoints=[origin,...ordered].map(s=>`${s.lat},${s.lng}`).join('/');
+    const gmapsUrl=`https://www.google.com/maps/dir/${waypoints}`;
+
+    routeData={origin,stops:ordered,gmapsUrl};
+    showRouteResult(origin,ordered,totalDist,returnDist,gmapsUrl);
+  }catch(e){
+    showError(e.message);
+  }
+  document.getElementById('routeBtn').disabled=false;
+}
+
+function showRouteResult(origin,stops,totalDist,returnDist,gmapsUrl){
+  document.getElementById('routeSubtitle').textContent=`Starting from ${origin.pc} · ${origin.district}`;
+  const list=document.getElementById('routeStopsList');
+  let html=`<div class="route-stop">
+    <div class="stop-num home">★</div>
+    <div class="stop-details"><div class="stop-pc">${origin.pc}</div><div class="stop-ward">🏠 Start — ${origin.ward}</div></div>
+    <div class="stop-dist">START</div>
+  </div>`;
+  stops.forEach((s,i)=>{
+    html+=`<div class="route-stop">
+      <div class="stop-num">${i+1}</div>
+      <div class="stop-details"><div class="stop-pc">${s.pc}</div><div class="stop-ward">${s.ward}</div></div>
+      <div class="stop-dist">${s.legDist.toFixed(1)} km leg<br>${s.distFromOrigin.toFixed(1)} km from base</div>
+    </div>`;
+  });
+  html+=`<div class="route-stop" style="border-style:dashed">
+    <div class="stop-num home">★</div>
+    <div class="stop-details"><div class="stop-pc">${origin.pc}</div><div class="stop-ward">🏠 Return to base</div></div>
+    <div class="stop-dist">${returnDist.toFixed(1)} km</div>
+  </div>`;
+  list.innerHTML=html;
+  document.getElementById('routeTotal').innerHTML=
+    `📌 ${stops.length} stops · ${(totalDist+returnDist).toFixed(1)} km round trip · ~${Math.round((totalDist+returnDist)/30*60)} min driving`;
+  showPhase('route');
+}
+
+function openGoogleMaps(){
+  window.open(routeData.gmapsUrl,'_blank');
+}
 </script>
 </body>
 </html>
