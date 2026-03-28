@@ -283,7 +283,7 @@ function setProgress(pct){document.getElementById('progressFill').style.width=pc
 function setStatus(t){document.getElementById('statusText').textContent=t}
 function addLog(t){const d=document.createElement('div');d.textContent='✓ '+t;document.getElementById('logBox').prepend(d)}
 function showError(msg){const e=document.getElementById('setupError');e.textContent=msg;e.style.display='block';document.getElementById('genBtn').disabled=false}
-function startOver(){showPhase('setup');document.getElementById('mapSvg').innerHTML='<defs><pattern id="swingHatch" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="rgba(0,0,0,.13)" stroke-width="2"/></pattern></defs>';document.getElementById('sidebarContent').innerHTML='';document.getElementById('logBox').innerHTML=''}
+function startOver(){showPhase('setup');document.getElementById('mapSvg').innerHTML='<defs><pattern id="swingHatch" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="rgba(0,0,0,.13)" stroke-width="2"/></pattern></defs>';document.getElementById('sidebarContent').innerHTML='';document.getElementById('logBox').innerHTML='';document.getElementById('genBtn').disabled=false;const rb=document.getElementById('routeBtn');if(rb)rb.disabled=false}
 function hav(a,b,c,d){const R=6371,dL=(c-a)*Math.PI/180,dG=(d-b)*Math.PI/180,x=Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dG/2)**2;return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x))}
 function mode(arr){const c={};arr.forEach(v=>{if(v)c[v]=(c[v]||0)+1});return Object.entries(c).sort((a,b)=>b[1]-a[1])[0]?.[0]||''}
 
