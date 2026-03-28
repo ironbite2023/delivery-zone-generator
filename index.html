@@ -233,7 +233,9 @@ async function generate(name,postcode,radiusKm){
   // Step 4: Group by sector
   const sm={};
   for(const[,p]of allPC){const d=p.incode?.[0];if(!d||!/\d/.test(d))continue;const sid=`${p.outcode} ${d}`;if(!sm[sid])sm[sid]={la:[],ln:[],ws:[]};sm[sid].la.push(p.latitude);sm[sid].ln.push(p.longitude);if(p.admin_ward)sm[sid].ws.push(p.admin_ward)}
-  let sectors=Object.entries(sm).map(([id,d])=>({id,lat:d.la.reduce((a,b)=>a+b)/d.la.length,lng:d.ln.reduce((a,b)=>a+b)/d.ln.length,ward:mode(d.ws),zone:-1,swing:null,dist:0}));
+  // Filter out sparse sectors (fewer than 3 postcodes = not a real delivery area)
+  const MIN_POSTCODES=3;
+  let sectors=Object.entries(sm).filter(([,d])=>d.la.length>=MIN_POSTCODES).map(([id,d])=>({id,lat:d.la.reduce((a,b)=>a+b)/d.la.length,lng:d.ln.reduce((a,b)=>a+b)/d.ln.length,ward:mode(d.ws),zone:-1,swing:null,dist:0,pcCount:d.la.length}));
   sectors.forEach(s=>s.dist=hav(s.lat,s.lng,rest.latitude,rest.longitude));
   // Filter by max delivery radius
   const beforeCount=sectors.length;
