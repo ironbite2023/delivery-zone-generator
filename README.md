@@ -21,12 +21,16 @@
 - **🖨️ Print-Ready** — Page 1: full-page map · Page 2: zone reference card for the wall
 
 ### 🚗 Route Planner Mode
-- **📮 Multi-Stop** — Enter up to 15 delivery postcodes
+- **🗂️ Dynamic Rows** — Clean, add/remove interface for up to 15 delivery stops
+- **🏠 Exact Address Logic** — Enter "12 CV1 5DW"; the system uses the postcode for fast routing API logic, but keeps the house number for exact Google Maps navigation to the front door
 - **🧠 Smart Ordering** — Nearest-neighbour algorithm optimises the stop sequence
-- **📊 Distance Breakdown** — See leg distance and distance from base for each stop
-- **⏱️ Trip Estimate** — Total round-trip distance and estimated driving time
-- **📍 Google Maps** — One-tap button opens the full route in Google Maps with all stops pre-loaded
-- **📱 Mobile Ready** — Google Maps link works on both desktop and mobile (opens the app)
+- **🛣️ OSRM AI** — Integrates with the Open Source Routing Machine for real-world driving miles and minutes (not just straight-line distances)
+- **💰 Fee Engine** — Set your custom `£/mile` and `Min Fee`. Automatically calculates delivery charges per stop and totals your round-trip revenue
+- **📋 WhatsApp Export** — 1-click button to copy a perfectly formatted driver run-sheet (with return leg & driving durations) straight to your clipboard
+- **📍 Google Maps** — One-tap button opens the full route in the Maps app with all stops pre-loaded
+
+### Settings
+- **💾 Auto-Save** — Your Restaurant Name, Postcode, Radius, and Fee Settings are saved to `localStorage` and persist across sessions automatically
 
 ### General
 - **🔒 Zero Dependencies** — Single self-contained HTML file, no frameworks, no backend
@@ -153,11 +157,13 @@ Laminate both pages and stick them on the dispatch wall.
 | Component | Technology |
 |-----------|-----------|
 | Frontend | Vanilla HTML/CSS/JavaScript |
+| Storage | HTML5 `localStorage` (Zero Cookies) |
 | Mapping | SVG with Voronoi tessellation |
-| Data | [postcodes.io](https://postcodes.io) (free, no auth) |
+| Geocoding | [postcodes.io](https://postcodes.io) (free, no auth) |
 | Clustering | Custom angular clustering algorithm |
-| Routing | Nearest-neighbour TSP |
-| Navigation | Google Maps multi-stop URLs |
+| Routing Logic| Nearest-neighbour TSP via postcodes.io |
+| Navigation Engine | [OSRM (Open Source Routing Machine)](http://project-osrm.org/) API |
+| Navigation Output | Google Maps multi-stop URLs |
 | Fonts | [Inter](https://fonts.google.com/specimen/Inter) via Google Fonts |
 
 **Zero external dependencies.** No React, no Leaflet, no Mapbox. Just one HTML file.
@@ -189,10 +195,8 @@ MIT License — free for personal and commercial use.
 Contributions welcome! Ideas for improvement:
 - [ ] Allow manual sector reassignment (drag between zones)
 - [ ] Export zone data as JSON/CSV
-- [ ] Support for non-UK postcodes
-- [ ] Estimated drive times via routing API
-- [ ] Save/load restaurant configurations
-- [ ] Driver assignment to zones
+- [ ] Support for non-UK postcodes (requires replacing `postcodes.io`)
+- [ ] Driver assignment and split-routing for very large batches
 
 ---
 
