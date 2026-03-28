@@ -159,6 +159,7 @@ body{background:#fff}
     <div class="mode-tabs">
       <button class="mode-tab active" onclick="switchMode('zones')">🗺️ Zone Map</button>
       <button class="mode-tab" onclick="switchMode('route')">🚗 Route Planner</button>
+      <button class="mode-tab" onclick="switchMode('check')">📍 Quick Check</button>
     </div>
     <!-- Zone Map Mode -->
     <div class="mode-content active" id="modeZones">
@@ -188,19 +189,53 @@ body{background:#fff}
     </div>
     <!-- Route Planner Mode -->
     <div class="mode-content" id="modeRoute">
-      <div class="form-group">
-        <label>Start From (Restaurant Postcode)</label>
-        <input type="text" id="routeStart" placeholder="e.g. CV1 5DW" style="text-transform:uppercase">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Start From (Postcode)</label>
+          <input type="text" id="routeStart" placeholder="e.g. CV1 5DW" style="text-transform:uppercase" onchange="saveSettings()">
+        </div>
+        <div class="form-group" style="display:flex;gap:10px">
+          <div style="flex:1">
+            <label>Fee Rate (£/mi)</label>
+            <input type="number" id="feeRate" placeholder="1.50" step="0.10" style="width:100%" onchange="saveSettings();syncSettings()">
+          </div>
+          <div style="flex:1">
+            <label>Min Fee (£)</label>
+            <input type="number" id="minFee" placeholder="2.00" step="0.50" style="width:100%" onchange="saveSettings();syncSettings()">
+          </div>
+        </div>
       </div>
       <div class="form-group">
         <label>Delivery Postcodes</label>
-        <textarea class="route-textarea" id="routeStops" placeholder="CV2 4NZ
-CV3 1HJ
-CV6 5AB
-CV5 8GH"></textarea>
+        <textarea class="route-textarea" id="routeStops" placeholder="CV2 4NZ&#10;CV3 1HJ&#10;CV6 5AB"></textarea>
         <div class="route-hint">One postcode per line, or comma-separated</div>
       </div>
       <button class="generate-btn" id="routeBtn" onclick="planRoute()">Plan My Route →</button>
+    </div>
+    <!-- Quick Check Mode -->
+    <div class="mode-content" id="modeCheck">
+      <div class="form-group">
+        <label>Customer Postcode</label>
+        <input type="text" id="checkPostcode" placeholder="e.g. CV4 7AL" style="text-transform:uppercase;font-size:18px;text-align:center">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Start (Shop Postcode)</label>
+          <input type="text" id="checkStart" placeholder="e.g. CV1 5DW" style="text-transform:uppercase" onchange="saveSettings()">
+        </div>
+        <div class="form-group" style="display:flex;gap:10px">
+          <div style="flex:1">
+            <label>Fee Rate (£/mi)</label>
+            <input type="number" id="checkFeeRate" placeholder="1.50" step="0.10" style="width:100%" onchange="saveSettings();syncSettings()">
+          </div>
+          <div style="flex:1">
+            <label>Min Fee (£)</label>
+            <input type="number" id="checkMinFee" placeholder="2.00" step="0.50" style="width:100%" onchange="saveSettings();syncSettings()">
+          </div>
+        </div>
+      </div>
+      <button class="generate-btn" id="checkBtn" onclick="quickCheck()">Check Address →</button>
+      <div id="checkResult" style="display:none;margin-top:20px;padding:16px;border-radius:10px;background:#f0f4ff;border:1.5px solid #bfdbfe;text-align:center"></div>
     </div>
     <div class="error-msg" id="setupError"></div>
   </div>
@@ -215,6 +250,7 @@ CV5 8GH"></textarea>
     <div class="route-total" id="routeTotal"></div>
     <div class="route-actions">
       <button class="btn" onclick="startOver()">← Back</button>
+      <button class="btn" id="copyBtn" onclick="copyWhatsApp()">📋 Copy for WhatsApp</button>
       <button class="generate-btn gmaps-btn" onclick="openGoogleMaps()">📍 Open in Google Maps</button>
     </div>
   </div>
@@ -282,12 +318,53 @@ function showPhase(id){document.querySelectorAll('.phase').forEach(p=>p.classLis
 function setProgress(pct){document.getElementById('progressFill').style.width=pct+'%'}
 function setStatus(t){document.getElementById('statusText').textContent=t}
 function addLog(t){const d=document.createElement('div');d.textContent='✓ '+t;document.getElementById('logBox').prepend(d)}
-function showError(msg){const e=document.getElementById('setupError');e.textContent=msg;e.style.display='block';document.getElementById('genBtn').disabled=false}
+function showError(msg){const e=document.getElementById('setupError');e.textContent=msg;e.style.display='block';document.getElementById('genBtn').disabled=false;if(document.getElementById('checkBtn'))document.getElementById('checkBtn').disabled=false;}
 function startOver(){showPhase('setup');document.getElementById('mapSvg').innerHTML='<defs><pattern id="swingHatch" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="rgba(0,0,0,.13)" stroke-width="2"/></pattern></defs>';document.getElementById('sidebarContent').innerHTML='';document.getElementById('logBox').innerHTML='';document.getElementById('genBtn').disabled=false;const rb=document.getElementById('routeBtn');if(rb)rb.disabled=false}
 function hav(a,b,c,d){const R=6371,dL=(c-a)*Math.PI/180,dG=(d-b)*Math.PI/180,x=Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dG/2)**2;return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x))}
 function mode(arr){const c={};arr.forEach(v=>{if(v)c[v]=(c[v]||0)+1});return Object.entries(c).sort((a,b)=>b[1]-a[1])[0]?.[0]||''}
 
+// ============ SETTINGS / LOCAL STORAGE ============
+window.onload=()=>{
+  loadSettings();
+};
+function loadSettings(){
+  try{
+    const s=JSON.parse(localStorage.getItem('dzg_settings'));
+    if(s){
+      if(s.name)document.getElementById('inputName').value=s.name;
+      if(s.pc){
+        document.getElementById('inputPostcode').value=s.pc;
+        document.getElementById('routeStart').value=s.pc;
+        document.getElementById('checkStart').value=s.pc;
+      }
+      if(s.radius)document.getElementById('inputRadius').value=s.radius;
+      if(s.feeRate){document.getElementById('feeRate').value=s.feeRate;document.getElementById('checkFeeRate').value=s.feeRate;}
+      if(s.minFee){document.getElementById('minFee').value=s.minFee;document.getElementById('checkMinFee').value=s.minFee;}
+    }
+  }catch(e){}
+}
+function saveSettings(){
+  const s={
+    name:document.getElementById('inputName').value.trim(),
+    pc:document.getElementById('inputPostcode').value.trim()||document.getElementById('routeStart').value.trim(),
+    radius:document.getElementById('inputRadius').value,
+    feeRate:document.getElementById('feeRate').value||document.getElementById('checkFeeRate').value,
+    minFee:document.getElementById('minFee').value||document.getElementById('checkMinFee').value
+  };
+  localStorage.setItem('dzg_settings',JSON.stringify(s));
+}
+function syncSettings(){
+  const f=document.getElementById('feeRate').value||document.getElementById('checkFeeRate').value;
+  const m=document.getElementById('minFee').value||document.getElementById('checkMinFee').value;
+  const start=document.getElementById('routeStart').value||document.getElementById('checkStart').value||document.getElementById('inputPostcode').value;
+  document.getElementById('feeRate').value=f;document.getElementById('checkFeeRate').value=f;
+  document.getElementById('minFee').value=m;document.getElementById('checkMinFee').value=m;
+  document.getElementById('routeStart').value=start;document.getElementById('checkStart').value=start;document.getElementById('inputPostcode').value=start;
+}
+
+
 async function startGenerate(){
+  saveSettings();
   const name=document.getElementById('inputName').value.trim();
   const pc=document.getElementById('inputPostcode').value.trim();
   const radiusMiles=parseFloat(document.getElementById('inputRadius').value)||5;
@@ -605,27 +682,78 @@ async function planRoute(){
       remaining.splice(nearest,1);
     }
 
-    // Calculate distances from origin for each stop
-    ordered.forEach(s=>s.distFromOrigin=hav(origin.lat,origin.lng,s.lat,s.lng));
+    // Call OSRM for real driving distance/time if possible
+    let osrmData=null;
+    try{
+      const coords=[origin,...ordered,...(ordered.length?[origin]:[])].map(p=>`${p.lng},${p.lat}`).join(';');
+      const osrmRes=await fetch(`https://router.project-osrm.org/route/v1/driving/${coords}?overview=false`);
+      if(osrmRes.ok){
+        const json=await osrmRes.json();
+        if(json.routes&&json.routes[0])osrmData=json.routes[0];
+      }
+    }catch(err){console.warn('OSRM failed, falling back to straight-line',err)}
 
-    // Total route distance
-    let totalDist=ordered[0]?hav(origin.lat,origin.lng,ordered[0].lat,ordered[0].lng):0;
-    for(let i=1;i<ordered.length;i++)totalDist+=hav(ordered[i-1].lat,ordered[i-1].lng,ordered[i].lat,ordered[i].lng);
-    const returnDist=ordered.length?hav(ordered[ordered.length-1].lat,ordered[ordered.length-1].lng,origin.lat,origin.lng):0;
+    let totalDistKm=0;
+    let totalDurMins=0;
+    const feeRate=parseFloat(document.getElementById('feeRate').value)||0;
+    const minFee=parseFloat(document.getElementById('minFee').value)||0;
+
+    ordered.forEach((s,i)=>{
+      if(osrmData&&osrmData.legs[i]){
+        s.legDist=osrmData.legs[i].distance/1000; // meters to km
+        s.legDurMins=osrmData.legs[i].duration/60; // seconds to mins
+      }else{
+        s.legDurMins=(s.legDist/30)*60; // fallback 30kph
+      }
+      totalDistKm+=s.legDist;
+      totalDurMins+=s.legDurMins;
+      
+      // Calculate fee based on dist from origin
+      let distFromOrigin=0;
+      if(osrmData){
+        // We don't have exact OSRM distance from origin without more calls, so we use straight line haversine for fee * 1.3 road factor
+        distFromOrigin=hav(origin.lat,origin.lng,s.lat,s.lng)*1.3;
+      }else{
+        distFromOrigin=hav(origin.lat,origin.lng,s.lat,s.lng);
+      }
+      s.distFromOrigin=distFromOrigin;
+      const miles=distFromOrigin*0.621371;
+      let fee=miles*feeRate;
+      if(fee<minFee)fee=minFee;
+      s.fee=fee;
+    });
+
+    let returnDist=0,returnDurMins=0;
+    if(ordered.length){
+      if(osrmData&&osrmData.legs[ordered.length]){
+        returnDist=osrmData.legs[ordered.length].distance/1000;
+        returnDurMins=osrmData.legs[ordered.length].duration/60;
+      }else{
+        returnDist=hav(ordered[ordered.length-1].lat,ordered[ordered.length-1].lng,origin.lat,origin.lng);
+        returnDurMins=(returnDist/30)*60;
+      }
+      totalDistKm+=returnDist;
+      totalDurMins+=returnDurMins;
+    }
+
+    const totalFee=ordered.reduce((sum,s)=>sum+(s.fee||0),0);
 
     // Build Google Maps URL
     const waypoints=[origin,...ordered].map(s=>`${s.lat},${s.lng}`).join('/');
     const gmapsUrl=`https://www.google.com/maps/dir/${waypoints}`;
 
-    routeData={origin,stops:ordered,gmapsUrl};
-    showRouteResult(origin,ordered,totalDist,returnDist,gmapsUrl);
+    routeData={origin,stops:ordered,gmapsUrl,totalDistKm:totalDistKm,totalDurMins:totalDurMins,totalFee:totalFee,returnDist:returnDist};
+    showRouteResult();
   }catch(e){
     showError(e.message);
   }
   document.getElementById('routeBtn').disabled=false;
 }
 
-function showRouteResult(origin,stops,totalDist,returnDist,gmapsUrl){
+function showRouteResult(){
+  const origin=routeData.origin;
+  const stops=routeData.stops;
+  
   document.getElementById('routeSubtitle').textContent=`Starting from ${origin.pc} · ${origin.district}`;
   const list=document.getElementById('routeStopsList');
   let html=`<div class="route-stop">
@@ -637,22 +765,111 @@ function showRouteResult(origin,stops,totalDist,returnDist,gmapsUrl){
     html+=`<div class="route-stop">
       <div class="stop-num">${i+1}</div>
       <div class="stop-details"><div class="stop-pc">${s.pc}</div><div class="stop-ward">${s.ward}</div></div>
-      <div class="stop-dist">${s.legDist.toFixed(1)} km leg<br>${s.distFromOrigin.toFixed(1)} km from base</div>
+      <div class="stop-dist" style="color:#b45309;font-weight:600">£${s.fee.toFixed(2)}<br>
+        <span style="font-weight:normal;font-size:10px;color:var(--muted)">${(s.distFromOrigin*0.621371).toFixed(1)}mi from base</span>
+      </div>
     </div>`;
   });
   html+=`<div class="route-stop" style="border-style:dashed">
     <div class="stop-num home">★</div>
     <div class="stop-details"><div class="stop-pc">${origin.pc}</div><div class="stop-ward">🏠 Return to base</div></div>
-    <div class="stop-dist">${returnDist.toFixed(1)} km</div>
+    <div class="stop-dist">${(routeData.returnDist*0.621371).toFixed(1)} mi</div>
   </div>`;
   list.innerHTML=html;
+  
+  const mi=(routeData.totalDistKm*0.621371).toFixed(1);
   document.getElementById('routeTotal').innerHTML=
-    `📌 ${stops.length} stops · ${(totalDist+returnDist).toFixed(1)} km round trip · ~${Math.round((totalDist+returnDist)/30*60)} min driving`;
+    `<div style="display:flex;justify-content:space-around">
+      <div>📌 ${stops.length} stops</div>
+      <div>🚗 ${mi} mi</div>
+      <div>⏱️ ~${Math.round(routeData.totalDurMins)} min</div>
+      <div style="color:#b45309">💰 <strong>£${routeData.totalFee.toFixed(2)}</strong></div>
+    </div>`;
   showPhase('route');
 }
 
 function openGoogleMaps(){
-  window.open(routeData.gmapsUrl,'_blank');
+  if(routeData.gmapsUrl) window.open(routeData.gmapsUrl,'_blank');
+}
+
+function copyWhatsApp(){
+  if(!routeData.stops.length) return;
+  const mi=(routeData.totalDistKm*0.621371).toFixed(1);
+  let txt=`🚗 *Delivery Run*\n\n`;
+  routeData.stops.forEach((s,i)=>{
+    txt+=`${i+1}. ${s.pc} - £${s.fee.toFixed(2)}\n`;
+  });
+  txt+=`\nTotal: ${mi} mi | Est Revenue: £${routeData.totalFee.toFixed(2)}\n`;
+  txt+=`📍 *Navigate*: ${routeData.gmapsUrl}`;
+
+  navigator.clipboard.writeText(txt).then(()=>{
+    const btn=document.getElementById('copyBtn');
+    btn.textContent='✓ Copied!';
+    setTimeout(()=>btn.textContent='📋 Copy for WhatsApp',2000);
+  });
+}
+
+// ============ QUICK CHECK ============
+async function quickCheck(){
+  saveSettings();
+  const start=document.getElementById('checkStart').value.trim().toUpperCase();
+  const dest=document.getElementById('checkPostcode').value.trim().toUpperCase();
+  const feeRate=parseFloat(document.getElementById('checkFeeRate').value)||0;
+  const minFee=parseFloat(document.getElementById('checkMinFee').value)||0;
+  
+  if(!start||!dest){
+    document.getElementById('checkResult').style.display='block';
+    document.getElementById('checkResult').innerHTML=`<span style="color:#c62828">⚠ Enter both Start and Customer postcodes.</span>`;
+    return;
+  }
+  
+  document.getElementById('checkBtn').disabled=true;
+  document.getElementById('checkBtn').textContent='Checking...';
+  
+  try{
+    const r=await fetch(`${API}/postcodes`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({postcodes:[start,dest]})}).then(r=>r.json());
+    if(!r.result||!r.result[0].result||!r.result[1].result)throw new Error('Could not find one of the postcodes.');
+    
+    const p1=r.result[0].result;
+    const p2=r.result[1].result;
+    
+    // OSRM route for accurate distance
+    let distMiles=hav(p1.latitude,p1.longitude,p2.latitude,p2.longitude)*0.621371; // Haversine fallback
+    let isOSRM=false;
+    let durMins=null;
+    
+    try{
+      const osrmRes=await fetch(`https://router.project-osrm.org/route/v1/driving/${p1.longitude},${p1.latitude};${p2.longitude},${p2.latitude}?overview=false`);
+      if(osrmRes.ok){
+        const json=await osrmRes.json();
+        if(json.routes&&json.routes[0]){
+          distMiles=(json.routes[0].distance/1000)*0.621371;
+          durMins=json.routes[0].duration/60;
+          isOSRM=true;
+        }
+      }
+    }catch(e){} // fallback to straight line
+    
+    let fee=distMiles*feeRate;
+    if(fee<minFee) fee=minFee;
+    
+    let html=``;
+    if(durMins!==null){
+      html+=`<div style="font-size:24px;margin-bottom:8px">🚗 <strong>~${Math.round(durMins)} mins</strong> driving</div>`;
+    }
+    html+=`<div style="font-size:18px;margin-bottom:4px">Distance: <strong>${distMiles.toFixed(1)} miles</strong> ${!isOSRM?'(straight line)':''}</div>`;
+    if(feeRate>0){
+      html+=`<div style="font-size:22px;color:#b45309;font-weight:800;margin-top:8px">Fee: £${fee.toFixed(2)}</div>`;
+    }
+    
+    document.getElementById('checkResult').innerHTML=html;
+    document.getElementById('checkResult').style.display='block';
+  }catch(err){
+    document.getElementById('checkResult').style.display='block';
+    document.getElementById('checkResult').innerHTML=`<span style="color:#c62828">⚠ ${err.message}</span>`;
+  }
+  document.getElementById('checkBtn').disabled=false;
+  document.getElementById('checkBtn').textContent='Check Address →';
 }
 </script>
 </body>
