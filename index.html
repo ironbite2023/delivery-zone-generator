@@ -73,6 +73,25 @@ body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var
 .zone-card .ward-note{font-size:10px;color:var(--muted);margin-top:3px}
 .swing-note{background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:7px 9px;font-size:11px;color:#92400e;margin-top:10px}
 
+/* Review Phase */
+.review{min-height:100vh;align-items:flex-start;justify-content:center;padding:40px 20px;background:var(--bg)}
+.review-card{background:var(--card);border-radius:16px;padding:32px;max-width:720px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.1)}
+.review-card h2{font-size:20px;font-weight:800;margin-bottom:4px}
+.review-card .tagline{font-size:13px;color:var(--muted);margin-bottom:16px}
+.review-stats{display:flex;gap:16px;margin-bottom:16px}
+.review-stat{background:#f0f4ff;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;color:#1e40af}
+.sector-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px;max-height:420px;overflow-y:auto;padding-right:4px;margin-bottom:16px}
+.sector-check{display:flex;align-items:center;gap:8px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;transition:all .15s;font-size:13px}
+.sector-check:hover{border-color:var(--gold);background:#fefce8}
+.sector-check.excluded{opacity:.45;background:#f9fafb;border-style:dashed}
+.sector-check input{accent-color:var(--gold);width:16px;height:16px;cursor:pointer}
+.sector-check .sc-name{font-weight:700;flex:1}
+.sector-check .sc-info{font-size:11px;color:var(--muted);text-align:right}
+.review-actions{display:flex;gap:8px;align-items:center}
+.review-actions .generate-btn{flex:1}
+.review-actions .btn{padding:10px 18px}
+.review-count{font-size:13px;color:var(--muted);margin-left:auto}
+
 .sector{cursor:pointer;transition:all .15s}
 .sector:hover{filter:brightness(.9)}
 .sector.selected{filter:brightness(.78);stroke-width:3.5}
@@ -137,10 +156,25 @@ body{background:#fff}
 <!-- PHASE 2: Loading -->
 <div id="loadingPhase" class="phase loading">
   <div class="loading-card">
-    <h2>🗺️ Generating Your Map</h2>
+    <h2>🗺️ Discovering Sectors</h2>
     <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
     <p id="statusText">Initialising...</p>
     <div class="log" id="logBox"></div>
+  </div>
+</div>
+
+<!-- PHASE 2.5: Review -->
+<div id="reviewPhase" class="phase review">
+  <div class="review-card">
+    <h2>📋 Review Sectors</h2>
+    <p class="tagline">Uncheck any sectors you don't want on your map, then build.</p>
+    <div class="review-stats" id="reviewStats"></div>
+    <div class="sector-grid" id="sectorGrid"></div>
+    <div class="review-actions">
+      <button class="btn" onclick="startOver()">← Back</button>
+      <span class="review-count" id="reviewCount"></span>
+      <button class="generate-btn" style="max-width:260px" onclick="buildMapFromReview()">Build My Map →</button>
+    </div>
   </div>
 </div>
 
@@ -233,24 +267,64 @@ async function generate(name,postcode,radiusKm){
   // Step 4: Group by sector
   const sm={};
   for(const[,p]of allPC){const d=p.incode?.[0];if(!d||!/\d/.test(d))continue;const sid=`${p.outcode} ${d}`;if(!sm[sid])sm[sid]={la:[],ln:[],ws:[]};sm[sid].la.push(p.latitude);sm[sid].ln.push(p.longitude);if(p.admin_ward)sm[sid].ws.push(p.admin_ward)}
-  // Filter out sparse sectors (fewer than 3 postcodes = not a real delivery area)
   const MIN_POSTCODES=3;
   let sectors=Object.entries(sm).filter(([,d])=>d.la.length>=MIN_POSTCODES).map(([id,d])=>({id,lat:d.la.reduce((a,b)=>a+b)/d.la.length,lng:d.ln.reduce((a,b)=>a+b)/d.ln.length,ward:mode(d.ws),zone:-1,swing:null,dist:0,pcCount:d.la.length}));
   sectors.forEach(s=>s.dist=hav(s.lat,s.lng,rest.latitude,rest.longitude));
-  // Filter by max delivery radius
-  const beforeCount=sectors.length;
   sectors=sectors.filter(s=>s.dist<=radiusKm);
   sectors.sort((a,b)=>a.id.localeCompare(b.id));
-  addLog(`${beforeCount} sectors found, ${sectors.length} within ${(radiusKm/1.609).toFixed(0)} mile radius`);
+  addLog(`${sectors.length} sectors within ${(radiusKm/1.609).toFixed(0)} mile radius`);
   if(sectors.length<4)throw new Error(`Only ${sectors.length} sectors within your radius — try increasing it.`);
 
-  // Step 5: Angular clustering — pie slices from restaurant
+  // Store for review
+  G.discoveredSectors=sectors;
+  G.restaurant=rest;
+  showReviewPhase(sectors,rest,radiusKm);
+}
+
+function showReviewPhase(sectors,rest,radiusKm){
+  // Show stats
+  const miles=(radiusKm/1.609).toFixed(0);
+  document.getElementById('reviewStats').innerHTML=
+    `<div class="review-stat">📍 ${rest.admin_district}</div>`+
+    `<div class="review-stat">📏 ${miles} mile radius</div>`+
+    `<div class="review-stat">🗂️ ${sectors.length} sectors found</div>`;
+  // Build checkbox grid
+  const grid=document.getElementById('sectorGrid');
+  grid.innerHTML=sectors.map(s=>
+    `<label class="sector-check" data-sid="${s.id}">`+
+    `<input type="checkbox" checked data-sid="${s.id}" onchange="updateReviewCount()">`+
+    `<span class="sc-name">${s.id}</span>`+
+    `<span class="sc-info">${s.dist<0.5?'🏠':s.dist.toFixed(1)+'mi'}<br>${s.ward}</span>`+
+    `</label>`
+  ).join('');
+  updateReviewCount();
+  showPhase('review');
+}
+
+function updateReviewCount(){
+  const checks=document.querySelectorAll('#sectorGrid input[type=checkbox]');
+  let count=0;
+  checks.forEach(cb=>{
+    const label=cb.closest('.sector-check');
+    if(cb.checked){count++;label.classList.remove('excluded')} else {label.classList.add('excluded')}
+  });
+  document.getElementById('reviewCount').textContent=`${count} of ${checks.length} selected`;
+}
+
+function buildMapFromReview(){
+  const checks=document.querySelectorAll('#sectorGrid input[type=checkbox]:checked');
+  const selected=new Set([...checks].map(cb=>cb.dataset.sid));
+  let sectors=G.discoveredSectors.filter(s=>selected.has(s.id));
+  if(sectors.length<3){alert('Please select at least 3 sectors.');return}
+  const rest=G.restaurant;
+  // Continue with clustering & rendering
+  showPhase('loading');
   setProgress(70);setStatus('Calculating delivery zones...');
+
   const k=Math.max(3,Math.min(7,Math.round(sectors.length/6)));
   angularCluster(sectors,k,rest);
-  addLog(`Created ${k} delivery zones (angular corridors)`);
 
-  // Step 6: Identify swing sectors & name zones
+  // Identify swing sectors & name zones
   setProgress(80);setStatus('Finalising zones...');
   const zones=[];
   for(let z=0;z<k;z++){
@@ -258,18 +332,14 @@ async function generate(name,postcode,radiusKm){
     const wards=members.map(s=>s.ward).filter(Boolean);
     const wc={};wards.forEach(w=>wc[w]=(wc[w]||0)+1);
     const top=Object.entries(wc).sort((a,b)=>b[1]-a[1]).slice(0,2).map(e=>e[0]);
-    // Determine compass direction for this zone
     const avgAngle=members.reduce((a,s)=>a+sectorAngle(s,rest),0)/members.length;
     const compass=angleToCompass(avgAngle);
     const zoneName=top.length?`${compass} — ${top.join(' / ')}`:`${compass} Zone`;
     zones.push({id:z,name:zoneName,colour:COLORS[z%COLORS.length],emoji:EMOJIS[z%EMOJIS.length],members});
   }
-  // Swing sectors: on zone borders (adjacent angular zones)
   sectors.forEach(s=>{
-    if(s.dist<0.6){s.swing=['any'];return}// Very close to restaurant
+    if(s.dist<0.6){s.swing=['any'];return}
     const ownZone=s.zone;
-    const myAngle=sectorAngle(s,rest);
-    // Check adjacent zones (zone±1, wrapping)
     for(const dz of [-1,1]){
       const adjZ=(ownZone+dz+k)%k;
       const adjMembers=sectors.filter(o=>o.zone===adjZ);
@@ -279,15 +349,13 @@ async function generate(name,postcode,radiusKm){
   });
   G.sectors=sectors;G.zones=zones;
 
-  // Step 7: Render
   setProgress(90);setStatus('Building your map...');
-  renderMap(name,rest,sectors,zones);
+  renderMap(G.name,rest,sectors,zones);
   setProgress(100);setStatus('Done!');
   setTimeout(()=>showPhase('map'),500);
 }
 
 function sectorAngle(s,rest){
-  // Bearing from restaurant to sector (0=N, 90=E, 180=S, 270=W)
   const dLng=(s.lng-rest.longitude)*Math.PI/180;
   const lat1=rest.latitude*Math.PI/180,lat2=s.lat*Math.PI/180;
   const y=Math.sin(dLng)*Math.cos(lat2);
